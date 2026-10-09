@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+日程数据.js
+schedule-data.json

@@ -1,0 +1,15 @@
+{
+  "name": "shijian-anpai",
+  "productName": "时间安排",
+  "version": "1.0.0",
+  "description": "时间安排桌面应用",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-packager . 时间安排 --platform=darwin --arch=arm64 --out=dist --overwrite"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-packager": "^17.1.2"
+  }
+}

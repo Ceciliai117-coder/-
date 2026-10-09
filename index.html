@@ -1,0 +1,2484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>时间安排</title>
+<style>
+  :root{
+    --bg:#f6f5f2;
+    --panel:#ffffff;
+    --border:#e4e1da;
+    --text:#2b2a27;
+    --text-dim:#6f6b62;
+    --accent:#3b6e5e;
+    --accent-soft:#e4efe9;
+    --fixed:#8a8577;
+    --fixed-soft:#efede8;
+    --danger:#b3453a;
+    --danger-soft:#fbe9e7;
+    --warn:#a97a1f;
+    --warn-soft:#faf1de;
+    --done:#9aa79b;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.55;}
+  h1,h2,h3{margin:0;font-weight:600;}
+  button{font-family:inherit;font-size:13px;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:7px 12px;transition:background .12s,border-color .12s;}
+  button:hover{background:#f0efe9;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.primary:hover{background:#325d4f;}
+  button.ghost{border-color:transparent;background:transparent;padding:4px 6px;}
+  button.ghost:hover{background:#eeece6;}
+  button.danger-text{color:var(--danger);}
+  input,select{font-family:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);width:100%;}
+  input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+  label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px;}
+  .field{margin-bottom:10px;}
+  .field-row{display:flex;gap:8px;}
+  .field-row .field{flex:1;}
+
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+  header h1{font-size:17px;letter-spacing:.2px;}
+  header .sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+  .header-actions{display:flex;gap:8px;align-items:center;}
+
+  main{flex:1;display:flex;min-height:0;min-width:0;}
+
+  aside{width:320px;flex-shrink:0;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;overflow:hidden;}
+  .tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .tab{flex:1;text-align:center;padding:11px 0;font-size:13px;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600;}
+  .tab-panel{display:none;flex:1;overflow-y:auto;padding:14px;}
+  .tab-panel.active{display:flex;flex-direction:column;}
+
+  .item-form{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;}
+  .item-form h3{font-size:12px;color:var(--text-dim);margin-bottom:10px;font-weight:600;}
+  .form-buttons{display:flex;gap:8px;margin-top:8px;}
+  .form-buttons button{flex:1;}
+
+  .item-list{display:flex;flex-direction:column;gap:8px;}
+  .item-card{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;background:#fff;cursor:pointer;}
+  .item-card:hover{border-color:var(--accent);}
+  .item-card .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .item-card .name{font-weight:600;font-size:13.5px;}
+  .item-card .meta{font-size:12px;color:var(--text-dim);margin-top:3px;}
+  .item-card.done .name{text-decoration:line-through;color:var(--text-dim);}
+  .item-card .pill{font-size:11px;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;}
+  .item-card .pill.p-high{background:var(--danger-soft);color:var(--danger);}
+  .item-card .pill.p-low{background:#eee;color:var(--text-dim);}
+  .item-actions{display:flex;gap:4px;margin-top:6px;}
+
+  .empty-hint{color:var(--text-dim);font-size:12.5px;text-align:center;padding:24px 8px;}
+
+  section.timeline{flex:1;min-width:0;overflow-y:auto;padding:18px 24px;}
+  .warnings{border:1px solid var(--danger);background:var(--danger-soft);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;}
+  .warnings h3{color:var(--danger);font-size:13px;margin-bottom:6px;}
+  .warnings ul{margin:0;padding-left:18px;font-size:13px;}
+  .warnings li{margin-bottom:3px;}
+
+  .timeline-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .view-toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .view-toggle button{border:none;border-radius:0;padding:7px 14px;background:var(--panel);}
+  .view-toggle button.active{background:var(--accent);color:#fff;}
+  .calendar-nav{display:flex;align-items:center;gap:8px;font-size:13px;}
+  .calendar-nav button{padding:5px 10px;}
+  .calendar-nav .month-label{font-weight:600;min-width:88px;text-align:center;}
+
+  .calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;min-width:0;}
+  .calendar-weekday{font-size:11px;color:var(--text-dim);text-align:center;padding-bottom:4px;}
+  .calendar-cell{border:1px solid var(--border);border-radius:8px;background:#fff;min-height:68px;min-width:0;padding:4px 5px;display:flex;flex-direction:column;cursor:pointer;}
+  .calendar-cell:hover{border-color:var(--accent);}
+  .calendar-cell.muted-month{background:#fbfaf8;}
+  .calendar-cell.muted-month .cell-num{color:#c7c3ba;}
+  .calendar-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
+  .calendar-cell.no-data{cursor:default;background:#fbfaf8;}
+  .calendar-cell.no-data .cell-num{color:#c7c3ba;}
+  .calendar-cell .cell-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}
+  .calendar-cell .cell-num{font-size:11.5px;font-weight:600;}
+  .calendar-cell .deadline-dot{width:6px;height:6px;border-radius:50%;background:var(--danger);flex-shrink:0;margin-top:2px;}
+  .calendar-cell .cell-chips{display:flex;flex-direction:column;gap:1px;flex:1;overflow:hidden;min-width:0;}
+  .chip{font-size:10px;padding:1px 4px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chip.fixed{background:var(--fixed-soft);color:var(--fixed);}
+  .chip.task{background:var(--accent-soft);color:#2c4f43;}
+  .chip.overdue{background:var(--danger-soft);color:var(--danger);font-weight:600;}
+  .chip.more{background:transparent;color:var(--text-dim);padding-left:2px;}
+  .cell-cap-bar{height:3px;border-radius:2px;background:#ece9e2;margin-top:3px;overflow:hidden;}
+  .cell-cap-bar .fill{height:100%;background:var(--accent);}
+  .cell-cap-bar .fill.full{background:var(--warn);}
+  .cell-cap-bar .fill.risk{background:var(--danger);}
+
+  #dayDetailBody .blocks{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+  #dayDetailBody .cap-line{font-size:12px;color:var(--text-dim);}
+  #dayDetailBody .dd-quick{display:flex;gap:6px;margin-bottom:4px;}
+  #dayDetailBody .dd-quick button{flex:1;font-size:11.5px;padding:5px 8px;}
+  #dayDetailBody .dd-section-title{font-size:11px;color:var(--text-dim);margin:8px 0 2px;font-weight:600;}
+  .dd-block{border-radius:7px;padding:6px 8px;}
+  .dd-block.fixed{background:var(--fixed-soft);}
+  .dd-block.task{background:var(--accent-soft);}
+  .dd-block.overdue{background:var(--danger-soft);}
+  .dd-block .dd-row1{display:flex;align-items:center;gap:6px;}
+  .dd-block .dd-row1 .dd-name{flex:1;font-size:12.5px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dd-block.fixed .dd-row1 .dd-name{color:var(--fixed);}
+  .dd-block.task .dd-row1 .dd-name{color:#2c4f43;}
+  .dd-block.overdue .dd-row1 .dd-name{color:var(--danger);}
+  .dd-block .dd-time{font-size:11px;color:var(--text-dim);white-space:nowrap;}
+  .dd-mini{font-size:11px;padding:2px 6px;border-radius:6px;}
+  .dd-block .dd-actions{display:flex;gap:2px;margin-left:4px;}
+  .subtasks{margin-top:5px;padding-left:2px;display:flex;flex-direction:column;gap:3px;}
+  .subtask-row{display:flex;align-items:center;gap:5px;font-size:12px;}
+  .subtask-row input[type=checkbox]{width:auto;flex-shrink:0;}
+  .subtask-row .st-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .subtask-row.done .st-text{text-decoration:line-through;color:var(--text-dim);}
+  .subtask-row .st-del{cursor:pointer;color:var(--text-dim);font-size:13px;padding:0 3px;flex-shrink:0;}
+  .subtask-row .st-del:hover{color:var(--danger);}
+  .subtask-add{display:flex;gap:4px;margin-top:4px;}
+  .subtask-add input{font-size:11.5px;padding:4px 7px;}
+  .subtask-add button{font-size:11px;padding:4px 8px;flex-shrink:0;}
+
+  .day-card{display:flex;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);}
+  .day-card.today{border-color:var(--accent);}
+  .day-card.past{opacity:.8;}
+  .day-card.past .day-date{background:#f2f0ea;}
+  .day-date{width:92px;flex-shrink:0;padding:12px 10px;text-align:center;border-right:1px solid var(--border);background:#fbfaf8;}
+  .day-date .dow{font-size:11px;color:var(--text-dim);}
+  .day-date .num{font-size:19px;font-weight:600;margin-top:2px;}
+  .day-date .mon{font-size:11px;color:var(--text-dim);}
+  .day-date .today-tag{margin-top:4px;font-size:10px;color:var(--accent);font-weight:600;}
+  .day-body{flex:1;padding:10px 14px;}
+  .day-body .cap-line{font-size:11.5px;color:var(--text-dim);margin-bottom:7px;}
+  .cap-line.full{color:var(--warn);}
+  .blocks{display:flex;flex-direction:column;gap:5px;}
+  .block{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 9px;border-radius:7px;}
+  .block.fixed{background:var(--fixed-soft);color:var(--fixed);}
+  .block.task{background:var(--accent-soft);color:#2c4f43;}
+  .block.overflow{background:var(--danger-soft);color:var(--danger);}
+  .block .time{font-size:11px;opacity:.8;white-space:nowrap;}
+  .block .flag{margin-left:auto;font-size:11px;font-weight:600;white-space:nowrap;}
+  .block-check{width:auto;flex-shrink:0;margin:0;cursor:pointer;}
+  .no-blocks{font-size:12px;color:#c7c3ba;}
+
+  footer{border-top:1px solid var(--border);background:var(--panel);padding:9px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+  footer .foot-actions{display:flex;gap:8px;}
+  footer .save-state{font-size:11.5px;color:var(--text-dim);}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;z-index:50;}
+  .modal-backdrop.show{display:flex;}
+  .modal{background:#fff;border-radius:12px;padding:20px;width:340px;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+  .modal h3{margin-bottom:6px;font-size:14px;}
+  .modal p{font-size:12.5px;color:var(--text-dim);margin-bottom:14px;}
+  .modal .form-buttons{margin-top:0;}
+
+  select#horizonSel{width:auto;}
+
+  textarea{font-family:inherit;font-size:12.5px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);width:100%;resize:vertical;line-height:1.5;}
+  textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}
+  .bulk-preview{max-height:220px;overflow-y:auto;margin:10px 0;display:flex;flex-direction:column;gap:5px;}
+  .bulk-row{font-size:12px;padding:6px 9px;border-radius:7px;background:var(--accent-soft);color:#2c4f43;}
+  .bulk-row.err{background:var(--danger-soft);color:var(--danger);}
+  .bulk-summary{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+  input[type=file]{padding:7px 0;border:none;}
+  .ics-row{display:flex;align-items:flex-start;gap:8px;font-size:12px;padding:7px 9px;border-radius:7px;background:var(--fixed-soft);color:var(--text);}
+  .ics-row input[type=checkbox]{margin-top:2px;width:auto;flex-shrink:0;}
+  .ics-row .meta{color:var(--text-dim);display:block;margin-top:1px;}
+  .ics-row .note{color:var(--warn);display:block;margin-top:1px;}
+  .ics-row.skip{background:#f2f0ea;color:var(--text-dim);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div>
+      <h1>时间安排</h1>
+      <div class="sub" id="headerSub"></div>
+    </div>
+    <div class="header-actions">
+      <button id="calSyncBtn">同步到日历</button>
+      <button id="settingsBtn">设置</button>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <div class="tabs">
+        <div class="tab active" data-tab="tasks">任务</div>
+        <div class="tab" data-tab="fixed">固定安排</div>
+      </div>
+
+      <div class="tab-panel active" id="panel-tasks">
+        <div class="item-form">
+          <div class="panel-head">
+            <h3 id="taskFormTitle">添加任务</h3>
+            <button class="ghost" id="bulkImportBtn" style="font-size:11.5px;">批量添加</button>
+          </div>
+          <div class="field">
+            <label>任务名称</label>
+            <input type="text" id="taskName" placeholder="例如 论文一稿">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>截止日期</label>
+              <input type="date" id="taskDeadline">
+            </div>
+            <div class="field">
+              <label>预计用时（小时）</label>
+              <input type="number" id="taskHours" min="0.5" step="0.5" placeholder="例如 8">
+            </div>
+          </div>
+          <div class="field">
+            <label>最早开始日期（可选，不填表示随时可以开始）</label>
+            <input type="date" id="taskEarliestStart">
+          </div>
+          <div class="field">
+            <label>优先级</label>
+            <select id="taskPriority">
+              <option value="2">中</option>
+              <option value="3">高</option>
+              <option value="1">低</option>
+            </select>
+          </div>
+          <div class="form-buttons">
+            <button class="primary" id="saveTaskBtn">添加</button>
+            <button id="cancelTaskBtn" style="display:none;">取消编辑</button>
+          </div>
+        </div>
+        <div class="item-list" id="taskList"></div>
+      </div>
+
+      <div class="tab-panel" id="panel-fixed">
+        <div class="item-form">
+          <div class="panel-head">
+            <h3 id="fixedFormTitle">添加固定安排</h3>
+            <div>
+              <button class="ghost" id="calReadBtn" style="font-size:11.5px;">从日历读取占用</button>
+              <button class="ghost" id="icsImportBtn" style="font-size:11.5px;">导入日历</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>名称</label>
+            <input type="text" id="fixedName" placeholder="例如 国际投资法课">
+          </div>
+          <div class="field">
+            <label>类型</label>
+            <select id="fixedType">
+              <option value="once">单次（指定日期）</option>
+              <option value="range">连续多天（比如集中授课或者写论文那一周）</option>
+              <option value="weekly">每周固定（按星期几）</option>
+            </select>
+          </div>
+          <div class="field" id="fixedDateField">
+            <label>日期</label>
+            <input type="date" id="fixedDate">
+          </div>
+          <div class="field-row" id="fixedRangeField" style="display:none;">
+            <div class="field">
+              <label>开始日期</label>
+              <input type="date" id="fixedRangeStart">
+            </div>
+            <div class="field">
+              <label>结束日期</label>
+              <input type="date" id="fixedRangeEnd">
+            </div>
+          </div>
+          <div class="field" id="fixedWeekdayField" style="display:none;">
+            <label>星期几</label>
+            <select id="fixedWeekday">
+              <option value="1">周一</option>
+              <option value="2">周二</option>
+              <option value="3">周三</option>
+              <option value="4">周四</option>
+              <option value="5">周五</option>
+              <option value="6">周六</option>
+              <option value="0">周日</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>开始时间</label>
+              <input type="time" id="fixedStart" value="09:00">
+            </div>
+            <div class="field">
+              <label>结束时间</label>
+              <input type="time" id="fixedEnd" value="10:00">
+            </div>
+          </div>
+          <div class="form-buttons">
+            <button class="primary" id="saveFixedBtn">添加</button>
+            <button id="cancelFixedBtn" style="display:none;">取消编辑</button>
+          </div>
+        </div>
+        <div class="item-list" id="fixedList"></div>
+      </div>
+    </aside>
+
+    <section class="timeline" id="timeline">
+      <div class="timeline-toolbar">
+        <div class="view-toggle" id="viewToggle">
+          <button data-view="list" id="viewListBtn">列表视图</button>
+          <button data-view="calendar" id="viewCalendarBtn">日历视图</button>
+        </div>
+        <div class="calendar-nav" id="calendarNav" style="display:none;">
+          <button id="calPrevBtn">‹ 上月</button>
+          <span class="month-label" id="calMonthLabel"></span>
+          <button id="calNextBtn">下月 ›</button>
+          <button id="calTodayBtn">回到本月</button>
+        </div>
+      </div>
+      <div id="warningsContainer"></div>
+      <div id="timelineContent"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="save-state" id="saveState">正在加载数据…</div>
+    <div class="foot-actions">
+      <button id="exportBtn">导出数据文件</button>
+      <button id="importBtn">导入数据文件</button>
+      <button class="danger-text" id="resetBtn">清空数据</button>
+    </div>
+  </footer>
+
+</div>
+
+<input type="file" id="importFile" accept=".json,.js,application/json,text/javascript" style="display:none;">
+
+<!-- 内置数据，直接写在文件里，不需要外部文件 -->
+<script id="embeddedData">
+window.__scheduleData = {
+  "tasks": [],
+  "fixedBlocks": [],
+  "settings": {
+    "capacityHours": 4,
+    "horizonDays": 30,
+    "viewMode": "list",
+    "autoLaunch": true,
+    "autoSync": false,
+    "lastSyncAt": 0
+  },
+  "updatedAt": 0
+};
+</script>
+
+<!-- 可选，如果同文件夹里有 日程数据.js，它会覆盖上面的内置数据 -->
+<script src="日程数据.js" onerror="window.__scheduleDataMissing=true;"></script>
+
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <h3>排程设置</h3>
+    <p>固定安排会先占用当天的时间，剩下的才是可以分配给任务的时间。</p>
+    <div class="field">
+      <label>每天可用于任务的时间上限（小时）</label>
+      <input type="number" id="capacityInput" min="0.5" step="0.5">
+    </div>
+    <div class="field">
+      <label>向后规划的天数</label>
+      <select id="horizonSel">
+        <option value="14">14 天</option>
+        <option value="30">30 天</option>
+        <option value="60">60 天</option>
+        <option value="90">90 天</option>
+      </select>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;">
+        <input type="checkbox" id="autoLaunchInput" style="width:auto;">
+        <span>开机自动启动</span>
+      </label>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;">
+        <input type="checkbox" id="autoSyncInput" style="width:auto;">
+        <span>自动同步到日历（启动时、每天早上 7 点、改动后 1 分钟）</span>
+      </label>
+    </div>
+    <div class="field">
+      <label>上次同步到日历的时间</label>
+      <div id="lastSyncDisplay" style="font-size:12.5px;color:var(--text-dim);"></div>
+    </div>
+    <div class="form-buttons">
+      <button class="primary" id="saveSettingsBtn">保存</button>
+      <button id="closeSettingsBtn">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="bulkModal">
+  <div class="modal" style="width:520px;">
+    <h3>批量添加任务</h3>
+    <p>每行一个任务，格式是任务名称，截止日期，预计小时数，优先级，最早开始日期，用逗号隔开。优先级和最早开始日期都可以不填，优先级不填按中处理，最早开始日期不填表示随时可以开始。日期可以写完整的 2026-09-30，也可以只写 9-30 或者 9月30日，不写年份就按今年算，如果这个日期已经过了就自动算到明年。</p>
+    <textarea id="bulkTextarea" rows="7" placeholder="论文一稿, 2026-09-30, 20, 高
+紧急材料, 9-11, 15"></textarea>
+    <div class="bulk-summary" id="bulkSummary"></div>
+    <div class="bulk-preview" id="bulkPreview"></div>
+    <div class="form-buttons">
+      <button class="primary" id="bulkConfirmBtn">添加</button>
+      <button id="bulkCancelBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="icsModal">
+  <div class="modal" style="width:540px;">
+    <h3>导入日历文件</h3>
+    <p>支持 .ics 格式，可以一次选多个文件，比如学校的校历和你自己的日历。全天事件不占用具体时间段，不会被导入。每周重复的事件会按星期几处理成固定安排，其他重复规则比如每天或每月，只会导入第一次出现的那天，需要你自己确认够不够用，或者手动补充。</p>
+    <input type="file" id="icsFileInput" accept=".ics,text/calendar" multiple>
+    <div class="bulk-summary" id="icsSummary"></div>
+    <div class="bulk-preview" id="icsPreview"></div>
+    <div class="form-buttons">
+      <button id="icsToggleAllBtn">全选或取消全选</button>
+      <button class="primary" id="icsConfirmBtn">添加选中项</button>
+      <button id="icsCancelBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="dayDetailModal">
+  <div class="modal" style="width:400px;max-height:82vh;display:flex;flex-direction:column;">
+    <h3 id="dayDetailTitle"></h3>
+    <div id="dayDetailBody" style="overflow-y:auto;"></div>
+    <div class="form-buttons"><button id="closeDayDetailBtn">关闭</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="calImportModal">
+  <div class="modal" style="width:460px;">
+    <h3 id="calImportTitle">从日历读取占用</h3>
+    <div id="calImportBody"></div>
+    <div class="form-buttons"><button id="closeCalImportBtn">关闭</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="calSyncResultModal">
+  <div class="modal" style="width:460px;">
+    <h3>同步到日历 - 结果</h3>
+    <div id="calSyncResultBody"></div>
+    <div class="form-buttons"><button id="closeCalSyncResultBtn">关闭</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal">
+    <h3 id="confirmTitle">确认</h3>
+    <p id="confirmText"></p>
+    <div class="form-buttons">
+      <button class="danger-text" id="confirmYesBtn">确认</button>
+      <button id="confirmNoBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "time-scheduler-data-v1";
+  var state = {
+    tasks: [],
+    fixedBlocks: [],
+    settings: { capacityHours: 4, horizonDays: 30, viewMode: "list", autoLaunch: true, autoSync: false, lastSyncAt: 0 },
+    updatedAt: 0
+  };
+  var editingTaskId = null;
+  var editingFixedId = null;
+  var pendingConfirm = null;
+  var lastSchedule = null;
+  var today0 = new Date(); today0.setHours(0,0,0,0);
+  var calYear = today0.getFullYear();
+  var calMonth = today0.getMonth();
+
+  // ---------- persistence ----------
+  var dataSource = "空";
+  var dataFilePath = null;
+
+  function applyParsed(parsed){
+    if(!parsed || typeof parsed !== "object") return false;
+    state.tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    state.fixedBlocks = Array.isArray(parsed.fixedBlocks) ? parsed.fixedBlocks : [];
+    if(parsed.settings){
+      state.settings.capacityHours = parsed.settings.capacityHours || 4;
+      state.settings.horizonDays = parsed.settings.horizonDays || 30;
+      state.settings.viewMode = parsed.settings.viewMode === "calendar" ? "calendar" : "list";
+      state.settings.autoLaunch = parsed.settings.autoLaunch !== false;
+      state.settings.autoSync = !!parsed.settings.autoSync;
+      state.settings.lastSyncAt = parsed.settings.lastSyncAt || 0;
+    }
+    state.updatedAt = parsed.updatedAt || 0;
+    return true;
+  }
+
+  // 在 Electron 里运行时，数据存在应用自己的数据目录下的一个 json 文件里，
+  // 由主进程负责读写（见 preload.js 里暴露的 window.dataFile）。
+  // 如果这个 json 文件还不存在（比如第一次用这个新存法），优先把浏览器本地存储里
+  // 之前留下的数据迁移过去，没有的话才退回网页里内置的那份数据，然后立刻写成文件。
+  //
+  // 如果不是在 Electron 里运行（比如直接拿浏览器打开这个 html 文件），退回到旧的
+  // 浏览器本地存储 + 内置数据的方式。
+  function loadData(){
+    if(window.dataFile){
+      try{ dataFilePath = window.dataFile.getPath(); }catch(e){ dataFilePath = null; }
+
+      var fileResult = null;
+      try{ fileResult = window.dataFile.load(); }catch(e){ console.warn("读取数据文件失败", e); }
+
+      if(fileResult && fileResult.exists && fileResult.data){
+        applyParsed(fileResult.data);
+        dataSource = "文件";
+        return;
+      }
+
+      var fromStorage = null;
+      try{
+        var raw = localStorage.getItem(STORAGE_KEY);
+        if(raw) fromStorage = JSON.parse(raw);
+      }catch(e){
+        console.warn("读取浏览器存储失败", e);
+      }
+      var fromEmbedded = (window.__scheduleData && typeof window.__scheduleData === "object") ? window.__scheduleData : null;
+
+      var storageTime = (fromStorage && fromStorage.updatedAt) || 0;
+      var embeddedTime = (fromEmbedded && fromEmbedded.updatedAt) || 0;
+
+      if(fromStorage && storageTime >= embeddedTime){
+        applyParsed(fromStorage);
+        dataSource = "迁移自浏览器存储";
+      } else if(fromEmbedded){
+        applyParsed(fromEmbedded);
+        dataSource = "网页内置数据";
+      }
+      saveData(); // 立刻写成文件，之后就不再依赖浏览器存储
+    } else {
+      var fromStorage2 = null, fromEmbedded2 = null;
+      try{
+        var raw2 = localStorage.getItem(STORAGE_KEY);
+        if(raw2) fromStorage2 = JSON.parse(raw2);
+      }catch(e){
+        console.warn("读取浏览器存储失败", e);
+      }
+      if(window.__scheduleData && typeof window.__scheduleData === "object") fromEmbedded2 = window.__scheduleData;
+
+      var st2 = (fromStorage2 && fromStorage2.updatedAt) || 0;
+      var ft2 = (fromEmbedded2 && fromEmbedded2.updatedAt) || 0;
+
+      if(fromEmbedded2 && (!fromStorage2 || ft2 >= st2)){
+        applyParsed(fromEmbedded2);
+        dataSource = "浏览器模式：文件内置";
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+      } else if(fromStorage2){
+        applyParsed(fromStorage2);
+        dataSource = "浏览器模式：浏览器存储";
+      } else {
+        dataSource = "空";
+      }
+    }
+  }
+
+  function saveData(){
+    state.updatedAt = Date.now();
+    if(window.dataFile){
+      try{
+        var result = window.dataFile.save(state);
+        if(result && result.ok){
+          dataFilePath = result.path;
+          setSaveState("已保存 " + nowTimeStr() + " · 数据文件：" + dataFilePath);
+        } else {
+          setSaveState("保存失败：" + ((result && result.error) || "未知错误") + "，路径：" + ((result && result.path) || dataFilePath || ""));
+        }
+      }catch(e){
+        setSaveState("保存失败：" + e.message);
+      }
+    } else {
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        setSaveState("已保存到浏览器 " + nowTimeStr() + "，长期保存请点导出数据文件");
+      }catch(e){
+        setSaveState("浏览器保存失败，请点导出数据文件手动保存一份");
+      }
+    }
+    // 自动同步：改动之后隔一分钟触发一次，跳过“静默同步自身”造成的保存，避免死循环
+    if(!autoSyncBusy) armAutoSyncDebounce();
+  }
+
+  function setSaveState(text){
+    document.getElementById("saveState").textContent = text;
+  }
+
+  function nowTimeStr(){
+    var d = new Date();
+    function p(n){ return (n<10?"0":"")+n; }
+    return p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+  }
+
+  // ---------- utils ----------
+  function uid(){
+    return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
+  }
+
+  function toISODate(d){
+    function p(n){ return (n<10?"0":"")+n; }
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+  }
+
+  function parseISODate(s){
+    var parts = s.split("-").map(Number);
+    return new Date(parts[0], parts[1]-1, parts[2]);
+  }
+
+  function addDays(d, n){
+    var r = new Date(d);
+    r.setDate(r.getDate()+n);
+    return r;
+  }
+
+  var WEEKDAY_LABELS = ["周日","周一","周二","周三","周四","周五","周六"];
+
+  function validateYMD(y, mo, d){
+    var dt = new Date(y, mo-1, d);
+    if(dt.getFullYear()!==y || dt.getMonth()!==mo-1 || dt.getDate()!==d) return null;
+    return toISODate(dt);
+  }
+
+  function resolveYearless(mo, d, base){
+    var y = base.getFullYear();
+    var dt = new Date(y, mo-1, d);
+    if(dt.getFullYear()!==y || dt.getMonth()!==mo-1 || dt.getDate()!==d) return null;
+    var base0 = new Date(base); base0.setHours(0,0,0,0);
+    if(dt < base0){
+      dt = new Date(y+1, mo-1, d);
+    }
+    return toISODate(dt);
+  }
+
+  // Accepts 2026-09-30 / 2026/09/30 / 2026年9月30日 / 9-30 / 9/30 / 9月30日
+  function parseFlexibleDate(str, base){
+    base = base || new Date();
+    var s = String(str).trim();
+    var m;
+    m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if(m) return validateYMD(+m[1], +m[2], +m[3]);
+    m = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+    if(m) return validateYMD(+m[1], +m[2], +m[3]);
+    m = s.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+    if(m) return resolveYearless(+m[1], +m[2], base);
+    m = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+    if(m) return resolveYearless(+m[1], +m[2], base);
+    return null;
+  }
+
+  function parseBulkLine(line, base){
+    var trimmed = line.trim();
+    if(!trimmed) return null;
+    var parts;
+    if(trimmed.indexOf("\t") !== -1 && trimmed.indexOf(",") === -1 && trimmed.indexOf("，") === -1){
+      parts = trimmed.split("\t");
+    } else {
+      parts = trimmed.replace(/，/g, ",").split(",");
+    }
+    parts = parts.map(function(p){ return p.trim(); });
+
+    var name = parts[0] || "";
+    var dateStr = parts[1] || "";
+    var hoursStr = parts[2] || "";
+    var priorityStr = parts[3] || "";
+    var earliestStartStr = parts[4] || "";
+
+    var errors = [];
+    if(!name) errors.push("缺任务名称");
+
+    var deadline = null;
+    if(!dateStr) errors.push("缺截止日期");
+    else {
+      deadline = parseFlexibleDate(dateStr, base);
+      if(!deadline) errors.push("日期看不懂：“"+dateStr+"”");
+    }
+
+    var hours = parseFloat(hoursStr);
+    if(!hoursStr) errors.push("缺预计小时数");
+    else if(!hours || hours <= 0) errors.push("小时数不对：“"+hoursStr+"”");
+
+    var priority = 2;
+    if(priorityStr){
+      if(priorityStr.indexOf("高") !== -1) priority = 3;
+      else if(priorityStr.indexOf("低") !== -1) priority = 1;
+      else if(priorityStr.indexOf("中") !== -1) priority = 2;
+      else errors.push("优先级看不懂：“"+priorityStr+"”，可以留空");
+    }
+
+    var earliestStart = "";
+    if(earliestStartStr){
+      earliestStart = parseFlexibleDate(earliestStartStr, base);
+      if(!earliestStart) errors.push("最早开始日期看不懂：“"+earliestStartStr+"”，可以留空");
+      else if(deadline && earliestStart > deadline) errors.push("最早开始日期不能晚于截止日期");
+    }
+
+    return { raw: line, name: name, deadline: deadline, hours: hours, priority: priority, earliestStart: earliestStart, errors: errors };
+  }
+
+  function formatDayNum(d){
+    return d.getDate();
+  }
+  function formatMonth(d){
+    return (d.getMonth()+1)+"月";
+  }
+
+  function priorityLabel(p){
+    if(p===3) return "高";
+    if(p===1) return "低";
+    return "中";
+  }
+  function priorityClass(p){
+    if(p===3) return "p-high";
+    if(p===1) return "p-low";
+    return "";
+  }
+
+  function fmtHours(h){
+    if(Math.abs(h - Math.round(h)) < 0.01) return Math.round(h) + "h";
+    return h.toFixed(1) + "h";
+  }
+
+  // ---------- 每日完成记录 ----------
+  // task.completions 是 {日期: 那天完成的小时数}，缺这个字段的老任务当作 {} 处理，
+  // 不影响任何已有数据。已完成小时数 = 所有记录之和，剩余小时数 = 预计用时 - 已完成。
+  function completedHoursOf(task){
+    var c = task.completions;
+    if(!c) return 0;
+    var sum = 0;
+    for(var k in c){
+      if(Object.prototype.hasOwnProperty.call(c, k)) sum += (c[k] || 0);
+    }
+    return sum;
+  }
+  function remainingHoursOf(task){
+    return Math.max(0, task.hours - completedHoursOf(task));
+  }
+
+  // ---------- scheduling ----------
+  // Returns { byDate: { iso: { fixed:[...], tasks:[...], capacity, used, overflowHere } }, atRisk: [...] }
+  function computeSchedule(){
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    var todayIso = toISODate(today);
+    var horizon = state.settings.horizonDays;
+    var capacity = state.settings.capacityHours;
+
+    var dates = [];
+    var byDate = {};
+    for(var i=0;i<horizon;i++){
+      var d = addDays(today, i);
+      var iso = toISODate(d);
+      dates.push(iso);
+      byDate[iso] = { date: d, fixed: [], tasks: [], deadlineFlags: [], capacity: capacity, fixedHours: 0 };
+    }
+
+    // place fixed blocks
+    state.fixedBlocks.forEach(function(fb){
+      dates.forEach(function(iso){
+        var day = byDate[iso];
+        var match = false;
+        if(fb.type === "weekly"){
+          match = day.date.getDay() === Number(fb.weekday);
+        } else {
+          match = fb.date === iso;
+        }
+        if(match){
+          var dur = timeDiffHours(fb.start, fb.end);
+          day.fixed.push({ id: fb.id, name: fb.name, start: fb.start, end: fb.end, hours: dur });
+          day.fixedHours += dur;
+        }
+      });
+    });
+
+    dates.forEach(function(iso){
+      var day = byDate[iso];
+      day.remaining = Math.max(0, capacity - day.fixedHours);
+      day.remainingOriginal = day.remaining;
+    });
+
+    // active tasks only, sorted by deadline (earliest first), then priority desc, then shorter first
+    // 排的是剩余小时数（预计用时减去已完成记录），不是任务的总小时数；剩余小时数
+    // 已经小于等于 0 的任务（不管 done 标志有没有跟着改）一律不参与排程，天然实现
+    // “自动标记完成、从待排列表移出”这条要求，不用额外维护一套同步逻辑。
+    var activeTasks = state.tasks
+      .filter(function(t){ return !t.done; })
+      .map(function(t){
+        return {
+          id: t.id,
+          name: t.name,
+          deadline: t.deadline,
+          priority: t.priority,
+          earliestStart: t.earliestStart,
+          hours: remainingHoursOf(t)
+        };
+      })
+      .filter(function(t){ return t.hours > 0.001; });
+    activeTasks.sort(function(a,b){
+      if(a.deadline !== b.deadline) return a.deadline < b.deadline ? -1 : 1;
+      if(a.priority !== b.priority) return b.priority - a.priority;
+      return a.hours - b.hours;
+    });
+
+    var atRisk = [];
+    var horizonEndIso = dates[dates.length-1];
+
+    activeTasks.forEach(function(task){
+      var deadlineIso = task.deadline;
+      var lastDayIso = deadlineIso < horizonEndIso ? deadlineIso : horizonEndIso;
+      var deadlineInRange = dates.indexOf(deadlineIso) !== -1;
+
+      // 最早开始日期：这一天之前不允许分配任何时间，哪怕当天是空的
+      var hasEarliestStart = !!task.earliestStart && task.earliestStart > todayIso;
+      var startIso = hasEarliestStart ? task.earliestStart : todayIso;
+
+      // pass 1: try to leave a one day buffer before the deadline, if possible
+      var bufferTarget = tryAllocate(task, dates, byDate, addDaysIso(deadlineIso, -1), startIso);
+      var allocation, usedBuffer;
+      if(bufferTarget.allocatedHours >= task.hours - 0.001){
+        allocation = bufferTarget; usedBuffer = true;
+      } else {
+        allocation = tryAllocate(task, dates, byDate, lastDayIso, startIso);
+        usedBuffer = false;
+      }
+
+      // commit the allocation
+      allocation.chunks.forEach(function(chunk){
+        byDate[chunk.iso].tasks.push({ id: task.id, name: task.name, hours: chunk.hours, priority: task.priority });
+        byDate[chunk.iso].remaining -= chunk.hours;
+      });
+
+      if(deadlineInRange){
+        byDate[deadlineIso].deadlineFlags.push(task.name);
+      }
+
+      var shortfall = task.hours - allocation.allocatedHours;
+      if(shortfall > 0.01){
+        var reason;
+        if(!deadlineInRange){
+          reason = deadlineIso < todayIso ? "已经过了截止日期，还没有标记完成" : "截止日期超出当前规划范围";
+        } else if(hasEarliestStart){
+          reason = "从最早开始日期 "+task.earliestStart+" 到截止日期之间排不完";
+        } else {
+          reason = "按现在的每日时间上限排不完";
+        }
+        atRisk.push({
+          name: task.name,
+          deadline: task.deadline,
+          neededHours: task.hours,
+          shortHours: Math.round(shortfall*10)/10,
+          reason: reason
+        });
+      } else if(!usedBuffer && deadlineInRange){
+        atRisk.push({
+          name: task.name,
+          deadline: task.deadline,
+          neededHours: task.hours,
+          shortHours: 0,
+          reason: "能排完，但截止日前一天没有缓冲，时间很紧"
+        });
+      }
+    });
+
+    // 逾期未完成的任务：截止日期已经过了但还没标记完成，排程算法本身不会再给它们分配
+    // 时间（起止区间已经失效），所以这里单独摘出来挂在“今天”这一天上，只用来显示提醒，
+    // 不改任务的 deadline，也不进 day.tasks / day.remaining 的计算。
+    var overdueTasks = state.tasks
+      .filter(function(t){ return !t.done && t.deadline < todayIso && remainingHoursOf(t) > 0.001; })
+      .map(function(t){
+        return { id: t.id, name: t.name, deadline: t.deadline, hours: remainingHoursOf(t), priority: t.priority };
+      })
+      .sort(function(a,b){ return a.deadline < b.deadline ? -1 : (a.deadline > b.deadline ? 1 : 0); });
+    if(byDate[todayIso]){
+      byDate[todayIso].overdueTasks = overdueTasks;
+    }
+
+    return { byDate: byDate, dates: dates, atRisk: atRisk, overdueTasks: overdueTasks, todayIso: todayIso };
+  }
+
+  function addDaysIso(iso, n){
+    return toISODate(addDays(parseISODate(iso), n));
+  }
+
+  function timeDiffHours(start, end){
+    var s = start.split(":").map(Number);
+    var e = end.split(":").map(Number);
+    var mins = (e[0]*60+e[1]) - (s[0]*60+s[1]);
+    if(mins < 0) mins = 0;
+    return mins/60;
+  }
+
+  function timeToMinutes(t){
+    var p = t.split(":").map(Number);
+    return p[0]*60+p[1];
+  }
+  function minutesToTime(m){
+    m = Math.round(m);
+    var h = Math.floor(m/60), mi = m%60;
+    return pad2(h)+":"+pad2(mi);
+  }
+  function rangesOverlap(s1,e1,s2,e2){
+    return timeToMinutes(s1) < timeToMinutes(e2) && timeToMinutes(s2) < timeToMinutes(e1);
+  }
+
+  // simulate allocation without mutating byDate.remaining permanently (uses a scratch copy)
+  // startIso：最早可以从哪天开始占用，早于这天的日子直接跳过，不分配任何时间
+  function tryAllocate(task, dates, byDate, endIso, startIso){
+    var need = task.hours;
+    var chunks = [];
+    var allocated = 0;
+    for(var i=0;i<dates.length;i++){
+      var iso = dates[i];
+      if(iso < startIso) continue;
+      if(iso > endIso) break;
+      var day = byDate[iso];
+      var free = day.remaining;
+      if(free <= 0.001) continue;
+      var take = Math.min(free, need - allocated);
+      if(take > 0.001){
+        chunks.push({ iso: iso, hours: Math.round(take*100)/100 });
+        allocated += take;
+      }
+      if(allocated >= need - 0.001) break;
+    }
+    return { chunks: chunks, allocatedHours: allocated };
+  }
+
+  // ---------- rendering ----------
+  function render(){
+    renderTaskList();
+    renderFixedList();
+    renderTimeline();
+    renderHeaderSub();
+  }
+
+  function renderSourceLine(){
+    var el = document.getElementById("saveState");
+    if(dataFilePath){
+      el.textContent = "数据保存在：" + dataFilePath;
+    } else if(dataSource === "浏览器模式：文件内置"){
+      el.textContent = "数据读自这个网页文件本身，就算浏览器清了缓存也还在";
+    } else if(dataSource === "浏览器模式：浏览器存储"){
+      el.textContent = "数据读自浏览器，这里的改动清缓存会丢，重要改动后可以点导出数据文件存一份";
+    } else {
+      el.textContent = "当前是空的，可以直接在左边添加";
+    }
+  }
+
+  function renderHeaderSub(){
+    var active = state.tasks.filter(function(t){return !t.done && remainingHoursOf(t) > 0.001;}).length;
+    document.getElementById("headerSub").textContent =
+      active + " 个待办任务，每天可用 " + fmtHours(state.settings.capacityHours) + "，向后看 " + state.settings.horizonDays + " 天";
+  }
+
+  function renderTaskList(){
+    var list = document.getElementById("taskList");
+    var tasks = state.tasks.slice().sort(function(a,b){
+      if(a.done !== b.done) return a.done ? 1 : -1;
+      return a.deadline < b.deadline ? -1 : (a.deadline > b.deadline ? 1 : 0);
+    });
+    if(tasks.length === 0){
+      list.innerHTML = '<div class="empty-hint">还没有任务，先在上面添加一个</div>';
+      return;
+    }
+    list.innerHTML = tasks.map(function(t){
+      var completed = completedHoursOf(t);
+      var subtasks = t.subtasks || [];
+      var subDone = subtasks.filter(function(s){return s.done;}).length;
+      return '<div class="item-card '+(t.done?'done':'')+'" data-id="'+t.id+'" data-kind="task">'
+        + '<div class="row1"><div class="name">'+escapeHtml(t.name)+'</div>'
+        + '<span class="pill '+priorityClass(t.priority)+'">'+priorityLabel(t.priority)+'</span></div>'
+        + '<div class="meta">截止 '+t.deadline+' · 预计 '+fmtHours(t.hours)+(completed>0.001 ? (' · 已完成 '+fmtHours(completed)) : '')+(t.earliestStart ? (' · 最早开始 '+t.earliestStart) : '')+(subtasks.length ? (' · 子任务 '+subDone+'/'+subtasks.length) : '')+'</div>'
+        + '<div class="item-actions">'
+        + '<button class="ghost" data-action="toggleDone" data-id="'+t.id+'">'+(t.done?'标记未完成':'标记完成')+'</button>'
+        + '<button class="ghost" data-action="editTask" data-id="'+t.id+'">编辑</button>'
+        + '<button class="ghost danger-text" data-action="deleteTask" data-id="'+t.id+'">删除</button>'
+        + '</div></div>';
+    }).join("");
+  }
+
+  function renderFixedList(){
+    var list = document.getElementById("fixedList");
+    if(state.fixedBlocks.length === 0){
+      list.innerHTML = '<div class="empty-hint">还没有固定安排，比如上课或开会</div>';
+      return;
+    }
+    list.innerHTML = state.fixedBlocks.map(function(f){
+      var when = f.type === "weekly" ? ("每周 "+WEEKDAY_LABELS[Number(f.weekday)]) : f.date;
+      return '<div class="item-card" data-id="'+f.id+'" data-kind="fixed">'
+        + '<div class="row1"><div class="name">'+escapeHtml(f.name)+'</div></div>'
+        + '<div class="meta">'+when+' · '+f.start+' - '+f.end+'</div>'
+        + '<div class="item-actions">'
+        + '<button class="ghost" data-action="editFixed" data-id="'+f.id+'">编辑</button>'
+        + '<button class="ghost danger-text" data-action="deleteFixed" data-id="'+f.id+'">删除</button>'
+        + '</div></div>';
+    }).join("");
+  }
+
+  function renderTimeline(){
+    var schedule = computeSchedule();
+    lastSchedule = schedule;
+
+    document.getElementById("warningsContainer").innerHTML = buildWarningsHtml(schedule);
+
+    var mode = state.settings.viewMode;
+    document.getElementById("viewListBtn").classList.toggle("active", mode === "list");
+    document.getElementById("viewCalendarBtn").classList.toggle("active", mode === "calendar");
+    document.getElementById("calendarNav").style.display = mode === "calendar" ? "flex" : "none";
+
+    var content = document.getElementById("timelineContent");
+    if(mode === "calendar"){
+      updateCalendarMonthLabel();
+      content.innerHTML = buildCalendarHtml(schedule);
+    } else {
+      content.innerHTML = buildListHtml(schedule);
+    }
+  }
+
+  function buildWarningsHtml(schedule){
+    if(!schedule.atRisk.length) return "";
+    var hard = schedule.atRisk.filter(function(r){return r.shortHours>0;});
+    var soft = schedule.atRisk.filter(function(r){return r.shortHours===0;});
+    var html = '<div class="warnings"><h3>需要你决定的地方</h3><ul>';
+    hard.forEach(function(r){
+      html += '<li><strong>'+escapeHtml(r.name)+'</strong>（截止 '+r.deadline+'）还差 '+fmtHours(r.shortHours)+' 排不进去，'+r.reason+'。可以考虑提高每日时间上限，或者减少这项任务的工作量，或者和相关方确认能否延后截止日期。</li>';
+    });
+    soft.forEach(function(r){
+      html += '<li><strong>'+escapeHtml(r.name)+'</strong>（截止 '+r.deadline+'）'+r.reason+'，最好留意进度，避免临时出状况。</li>';
+    });
+    html += '</ul></div>';
+    return html;
+  }
+
+  // 过去的日子（今天之前）只显示实际勾过的完成记录，不显示当初的计划——那些没做完
+  // 的部分已经顺延到后面重新排过了，留在过去只会让人以为还要补做。只有真的有记录的
+  // 那些天才会显示卡片，纯粹没勾过任何东西的过去日子直接跳过，不占地方。
+  function collectPastCompletionDates(todayIso){
+    var set = {};
+    state.tasks.forEach(function(t){
+      var c = t.completions;
+      if(!c) return;
+      for(var d in c){
+        if(Object.prototype.hasOwnProperty.call(c, d) && d < todayIso && c[d] > 0.0001){
+          set[d] = true;
+        }
+      }
+    });
+    return Object.keys(set).sort();
+  }
+
+  function buildPastDayCardHtml(iso){
+    var d = parseISODate(iso);
+    var rows = [];
+    state.tasks.forEach(function(t){
+      var c = t.completions;
+      if(c && c[iso] > 0.0001){
+        rows.push({ taskId: t.id, name: t.name, hours: c[iso] });
+      }
+    });
+
+    var html = '<div class="day-card past">';
+    html += '<div class="day-date"><div class="dow">'+WEEKDAY_LABELS[d.getDay()]+'</div><div class="num">'+formatDayNum(d)+'</div><div class="mon">'+formatMonth(d)+'</div></div>';
+    html += '<div class="day-body">';
+    html += '<div class="cap-line">这天已经过去，下面是实际勾过的完成记录，取消勾选可以撤销</div>';
+    html += '<div class="blocks">';
+    rows.forEach(function(r){
+      html += '<div class="block task">'
+        + '<input type="checkbox" class="block-check" checked data-task-id="'+r.taskId+'" data-date="'+iso+'" data-hours="'+r.hours+'">'
+        + '<span>'+escapeHtml(r.name)+'</span>'
+        + '<span class="time">'+fmtHours(r.hours)+'</span>'
+        + '</div>';
+    });
+    html += '</div>'; // blocks
+    html += '</div>'; // day-body
+    html += '</div>'; // day-card
+    return html;
+  }
+
+  function buildListHtml(schedule){
+    var html = "";
+    var todayIso = toISODate(new Date());
+
+    collectPastCompletionDates(todayIso).forEach(function(iso){
+      html += buildPastDayCardHtml(iso);
+    });
+
+    schedule.dates.forEach(function(iso){
+      var day = schedule.byDate[iso];
+      var isToday = iso === todayIso;
+      var d = day.date;
+      var capLineClass = day.remaining <= 0.01 ? "full" : "";
+
+      html += '<div class="day-card '+(isToday?'today':'')+'">';
+      html += '<div class="day-date"><div class="dow">'+WEEKDAY_LABELS[d.getDay()]+'</div><div class="num">'+formatDayNum(d)+'</div><div class="mon">'+formatMonth(d)+'</div>';
+      if(isToday) html += '<div class="today-tag">今天</div>';
+      html += '</div>';
+
+      html += '<div class="day-body">';
+      html += '<div class="cap-line '+capLineClass+'">当天任务时间上限 '+fmtHours(state.settings.capacityHours)+'，固定安排占用 '+fmtHours(day.fixedHours)+'，剩余可排 '+fmtHours(Math.max(0,day.remaining))+'</div>';
+      html += '<div class="blocks">' + buildBlocksHtml(day, isToday, iso) + '</div>';
+      html += '</div>'; // day-body
+      html += '</div>'; // day-card
+    });
+
+    return html;
+  }
+
+  // isToday/iso 只有列表视图“今天”这一天会传，传了就给任务块加勾选框：已经记录过
+  // 完成的先列出来（勾上，可以取消），当前排程里今天还剩的部分列在后面（没勾，点上
+  // 就记一条完成记录）。今天之后的块不加勾选框，还没到日子谈不上完成。
+  function buildBlocksHtml(day, isToday, iso){
+    var html = "";
+    var hasBlocks = false;
+    day.fixed.forEach(function(f){
+      hasBlocks = true;
+      html += '<div class="block fixed"><span>'+escapeHtml(f.name)+'</span><span class="time">'+f.start+' - '+f.end+'</span></div>';
+    });
+    if(isToday){
+      state.tasks.forEach(function(t){
+        var c = t.completions;
+        if(c && c[iso] > 0.0001){
+          hasBlocks = true;
+          html += '<div class="block task">'
+            + '<input type="checkbox" class="block-check" checked data-task-id="'+t.id+'" data-date="'+iso+'" data-hours="'+c[iso]+'">'
+            + '<span>'+escapeHtml(t.name)+'</span>'
+            + '<span class="time">'+fmtHours(c[iso])+'</span>'
+            + '</div>';
+        }
+      });
+      day.tasks.forEach(function(t){
+        hasBlocks = true;
+        html += '<div class="block task">'
+          + '<input type="checkbox" class="block-check" data-task-id="'+t.id+'" data-date="'+iso+'" data-hours="'+t.hours+'">'
+          + '<span>'+escapeHtml(t.name)+'</span>'
+          + '<span class="time">'+fmtHours(t.hours)+'</span>'
+          + '</div>';
+      });
+    } else {
+      day.tasks.forEach(function(t){
+        hasBlocks = true;
+        html += '<div class="block task"><span>'+escapeHtml(t.name)+'</span><span class="time">'+fmtHours(t.hours)+'</span></div>';
+      });
+    }
+    day.deadlineFlags.forEach(function(name){
+      hasBlocks = true;
+      html += '<div class="block overflow"><span>截止：'+escapeHtml(name)+'</span><span class="flag">今天截止</span></div>';
+    });
+    if(!hasBlocks){
+      html += '<div class="no-blocks">这天没有安排</div>';
+    }
+    return html;
+  }
+
+  // ---------- calendar view ----------
+  function updateCalendarMonthLabel(){
+    document.getElementById("calMonthLabel").textContent = calYear + "年" + (calMonth+1) + "月";
+  }
+
+  function buildCalendarHtml(schedule){
+    var todayIso = toISODate(new Date());
+    var firstOfMonth = new Date(calYear, calMonth, 1);
+    var jsWeekday = firstOfMonth.getDay(); // 0=Sun
+    var mondayOffset = (jsWeekday + 6) % 7; // days since Monday
+    var gridStart = addDays(firstOfMonth, -mondayOffset);
+
+    var html = '<div class="calendar-grid">';
+    ["周一","周二","周三","周四","周五","周六","周日"].forEach(function(w){
+      html += '<div class="calendar-weekday">'+w+'</div>';
+    });
+
+    for(var i=0;i<42;i++){
+      var d = addDays(gridStart, i);
+      var iso = toISODate(d);
+      var inMonth = d.getMonth() === calMonth;
+      var isToday = iso === todayIso;
+      var day = schedule.byDate[iso];
+      var isPast = iso < todayIso;
+      var hasData = !!day;
+
+      var cls = "calendar-cell";
+      if(!inMonth) cls += " muted-month";
+      if(isToday) cls += " today";
+      if(!hasData) cls += " no-data";
+
+      html += '<div class="'+cls+'" data-iso="'+iso+'" data-has-data="'+(hasData?"1":"0")+'">';
+      html += '<div class="cell-top"><span class="cell-num">'+d.getDate()+'</span>';
+      if(hasData && day.deadlineFlags.length){
+        html += '<span class="deadline-dot" title="'+escapeHtml(day.deadlineFlags.join("、"))+'今天截止"></span>';
+      }
+      html += '</div>';
+
+      if(hasData){
+        var chips = [];
+        if(isToday && day.overdueTasks){
+          day.overdueTasks.forEach(function(t){ chips.push({cls:"overdue", label:"逾期 "+t.name}); });
+        }
+        day.fixed.forEach(function(f){ chips.push({cls:"fixed", label:f.name}); });
+        day.tasks.forEach(function(t){ chips.push({cls:"task", label:t.name+" "+fmtHours(t.hours)}); });
+        html += '<div class="cell-chips">';
+        var shown = chips.slice(0,2);
+        shown.forEach(function(c){
+          html += '<div class="chip '+c.cls+'">'+escapeHtml(c.label)+'</div>';
+        });
+        if(chips.length > shown.length){
+          html += '<div class="chip more">+'+(chips.length - shown.length)+' 项</div>';
+        }
+        html += '</div>';
+
+        var pct = day.remainingOriginal > 0 ? Math.min(1, 1 - day.remaining/day.remainingOriginal) : (day.fixedHours>0?1:0);
+        var fillClass = day.remaining <= 0.01 ? (day.fixedHours > state.settings.capacityHours ? "risk" : "full") : "";
+        html += '<div class="cell-cap-bar"><div class="fill '+fillClass+'" style="width:'+Math.round(pct*100)+'%;"></div></div>';
+      } else {
+        html += '<div class="cell-chips"></div>';
+      }
+
+      html += '</div>'; // calendar-cell
+    }
+
+    html += '</div>'; // calendar-grid
+    return html;
+  }
+
+  // 日历里点开某一天之后弹出的详情框：跟列表视图的只读卡片不一样，这里每个固定安排/
+  // 任务旁边都带编辑、删除按钮，任务下面还能直接加子任务勾选项——都是委托事件，绑在
+  // #dayDetailBody 上（见 initDayDetailActions），弹窗内容每次重画不用重新绑定。
+  var currentDayDetailIso = null;
+
+  function buildTaskDdBlock(t, overdue){
+    var task = state.tasks.find(function(x){return x.id===t.id;});
+    var subtasks = (task && task.subtasks) || [];
+    var doneCount = subtasks.filter(function(s){return s.done;}).length;
+    var html = '<div class="dd-block '+(overdue?"overdue":"task")+'">';
+    html += '<div class="dd-row1"><span class="dd-name">'+escapeHtml(t.name)+(overdue?'（截止 '+t.deadline+'）':'')+'</span>';
+    html += '<span class="dd-time">'+fmtHours(t.hours)+(subtasks.length?(' · '+doneCount+'/'+subtasks.length):'')+'</span>';
+    html += '<span class="dd-actions">';
+    html += '<button class="ghost dd-mini" data-action="ddToggleDone" data-id="'+t.id+'">完成</button>';
+    html += '<button class="ghost dd-mini" data-action="ddEditTask" data-id="'+t.id+'">编辑</button>';
+    html += '<button class="ghost danger-text dd-mini" data-action="ddDeleteTask" data-id="'+t.id+'">删除</button>';
+    html += '</span></div>';
+
+    html += '<div class="subtasks">';
+    subtasks.forEach(function(s){
+      html += '<div class="subtask-row '+(s.done?"done":"")+'">'
+        + '<input type="checkbox" '+(s.done?"checked":"")+' data-action="ddToggleSubtask" data-task-id="'+t.id+'" data-sub-id="'+s.id+'">'
+        + '<span class="st-text">'+escapeHtml(s.text)+'</span>'
+        + '<span class="st-del" data-action="ddDeleteSubtask" data-task-id="'+t.id+'" data-sub-id="'+s.id+'">×</span>'
+        + '</div>';
+    });
+    html += '<div class="subtask-add">'
+      + '<input type="text" placeholder="添加子任务" data-subtask-input="'+t.id+'">'
+      + '<button class="ghost" data-action="ddAddSubtask" data-task-id="'+t.id+'">添加</button>'
+      + '</div>';
+    html += '</div>'; // subtasks
+    html += '</div>'; // dd-block
+    return html;
+  }
+
+  function buildDayDetailBlocksHtml(day, iso, isToday){
+    var html = "";
+    var hasBlocks = false;
+
+    if(isToday && day.overdueTasks && day.overdueTasks.length){
+      html += '<div class="dd-section-title">已逾期，还没标记完成</div>';
+      day.overdueTasks.forEach(function(t){
+        hasBlocks = true;
+        html += buildTaskDdBlock(t, true);
+      });
+    }
+
+    day.fixed.forEach(function(f){
+      hasBlocks = true;
+      html += '<div class="dd-block fixed"><div class="dd-row1">'
+        + '<span class="dd-name">'+escapeHtml(f.name)+'</span>'
+        + '<span class="dd-time">'+f.start+' - '+f.end+'</span>'
+        + '<span class="dd-actions">'
+        + '<button class="ghost dd-mini" data-action="ddEditFixed" data-id="'+f.id+'">编辑</button>'
+        + '<button class="ghost danger-text dd-mini" data-action="ddDeleteFixed" data-id="'+f.id+'">删除</button>'
+        + '</span></div></div>';
+    });
+
+    day.tasks.forEach(function(t){
+      hasBlocks = true;
+      html += buildTaskDdBlock(t, false);
+    });
+
+    day.deadlineFlags.forEach(function(name){
+      hasBlocks = true;
+      html += '<div class="dd-block overdue"><div class="dd-row1"><span class="dd-name">截止：'+escapeHtml(name)+'</span><span class="dd-time">今天截止</span></div></div>';
+    });
+
+    if(!hasBlocks){
+      html += '<div class="no-blocks">这天没有安排</div>';
+    }
+    return html;
+  }
+
+  function openDayDetail(iso){
+    if(!lastSchedule) return;
+    currentDayDetailIso = iso;
+    var day = lastSchedule.byDate[iso];
+    var d = parseISODate(iso);
+    var title = iso + " " + WEEKDAY_LABELS[d.getDay()];
+    var todayIso = toISODate(new Date());
+    var isToday = iso === todayIso;
+
+    var quick = '<div class="dd-quick">'
+      + '<button data-action="ddQuickAddFixed" data-iso="'+iso+'">+ 固定安排</button>'
+      + '<button data-action="ddQuickAddTask" data-iso="'+iso+'">+ 任务</button>'
+      + '</div>';
+
+    var body;
+    if(!day){
+      if(iso < todayIso){
+        body = quick + '<p class="cap-line">这一天已经过去了。</p>';
+      } else {
+        body = quick + '<p class="cap-line">这一天超出了当前的规划范围，可以在设置里增加“向后规划的天数”。</p>';
+      }
+    } else {
+      body = quick;
+      body += '<div class="cap-line">当天任务时间上限 '+fmtHours(state.settings.capacityHours)+'，固定安排占用 '+fmtHours(day.fixedHours)+'，剩余可排 '+fmtHours(Math.max(0,day.remaining))+'</div>';
+      body += '<div class="blocks">' + buildDayDetailBlocksHtml(day, iso, isToday) + '</div>';
+    }
+    document.getElementById("dayDetailTitle").textContent = title;
+    document.getElementById("dayDetailBody").innerHTML = body;
+    document.getElementById("dayDetailModal").classList.add("show");
+  }
+
+  function refreshDayDetail(){
+    var modal = document.getElementById("dayDetailModal");
+    if(currentDayDetailIso && modal.classList.contains("show")) openDayDetail(currentDayDetailIso);
+  }
+
+  function initDayDetailActions(){
+    document.getElementById("dayDetailBody").addEventListener("click", function(e){
+      var target = e.target;
+      var btn = target.closest("button");
+      var action = btn ? btn.dataset.action : (target.dataset && target.dataset.action);
+      if(!action) return;
+
+      if(action === "ddQuickAddFixed"){
+        document.getElementById("dayDetailModal").classList.remove("show");
+        document.querySelector('.tab[data-tab="fixed"]').click();
+        document.getElementById("fixedType").value = "once";
+        document.getElementById("fixedDateField").style.display = "block";
+        document.getElementById("fixedRangeField").style.display = "none";
+        document.getElementById("fixedWeekdayField").style.display = "none";
+        document.getElementById("fixedDate").value = btn.dataset.iso;
+        document.getElementById("fixedName").focus();
+        return;
+      }
+      if(action === "ddQuickAddTask"){
+        document.getElementById("dayDetailModal").classList.remove("show");
+        document.querySelector('.tab[data-tab="tasks"]').click();
+        document.getElementById("taskDeadline").value = btn.dataset.iso;
+        document.getElementById("taskName").focus();
+        return;
+      }
+      if(action === "ddToggleDone"){ toggleTaskDone(btn.dataset.id); refreshDayDetail(); return; }
+      if(action === "ddEditTask"){ document.getElementById("dayDetailModal").classList.remove("show"); startEditTask(btn.dataset.id); return; }
+      if(action === "ddDeleteTask"){ deleteTaskConfirm(btn.dataset.id); return; }
+      if(action === "ddEditFixed"){ document.getElementById("dayDetailModal").classList.remove("show"); startEditFixed(btn.dataset.id); return; }
+      if(action === "ddDeleteFixed"){ deleteFixedConfirm(btn.dataset.id); return; }
+
+      if(action === "ddAddSubtask"){
+        var input = document.querySelector('[data-subtask-input="'+btn.dataset.taskId+'"]');
+        addSubtask(btn.dataset.taskId, input ? input.value : "");
+        return;
+      }
+      if(action === "ddDeleteSubtask"){
+        deleteSubtask(target.dataset.taskId, target.dataset.subId);
+        return;
+      }
+    });
+
+    document.getElementById("dayDetailBody").addEventListener("change", function(e){
+      var target = e.target;
+      if(target.dataset && target.dataset.action === "ddToggleSubtask"){
+        toggleSubtask(target.dataset.taskId, target.dataset.subId, target.checked);
+      }
+    });
+
+    document.getElementById("dayDetailBody").addEventListener("keydown", function(e){
+      if(e.key === "Enter" && e.target.dataset && e.target.dataset.subtaskInput){
+        addSubtask(e.target.dataset.subtaskInput, e.target.value);
+      }
+    });
+  }
+
+  // ---------- subtasks (checklist items under a task) ----------
+  function addSubtask(taskId, text){
+    text = (text || "").trim();
+    if(!text) return;
+    var task = state.tasks.find(function(t){return t.id===taskId;});
+    if(!task) return;
+    if(!task.subtasks) task.subtasks = [];
+    task.subtasks.push({ id: uid(), text: text, done: false });
+    saveData(); render(); refreshDayDetail();
+  }
+
+  function toggleSubtask(taskId, subId, checked){
+    var task = state.tasks.find(function(t){return t.id===taskId;});
+    if(!task || !task.subtasks) return;
+    var s = task.subtasks.find(function(x){return x.id===subId;});
+    if(!s) return;
+    s.done = !!checked;
+    saveData(); render(); refreshDayDetail();
+  }
+
+  function deleteSubtask(taskId, subId){
+    var task = state.tasks.find(function(t){return t.id===taskId;});
+    if(!task || !task.subtasks) return;
+    task.subtasks = task.subtasks.filter(function(x){return x.id!==subId;});
+    saveData(); render(); refreshDayDetail();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ---------- event wiring ----------
+  function initTabs(){
+    document.querySelectorAll(".tab").forEach(function(tab){
+      tab.addEventListener("click", function(){
+        document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});
+        document.querySelectorAll(".tab-panel").forEach(function(p){p.classList.remove("active");});
+        tab.classList.add("active");
+        document.getElementById("panel-"+tab.dataset.tab).classList.add("active");
+      });
+    });
+  }
+
+  function initTaskForm(){
+    document.getElementById("saveTaskBtn").addEventListener("click", function(){
+      var name = document.getElementById("taskName").value.trim();
+      var deadline = document.getElementById("taskDeadline").value;
+      var hours = parseFloat(document.getElementById("taskHours").value);
+      var priority = parseInt(document.getElementById("taskPriority").value, 10);
+      var earliestStart = document.getElementById("taskEarliestStart").value;
+
+      if(!name){ alert("请填写任务名称"); return; }
+      if(!deadline){ alert("请选择截止日期"); return; }
+      if(!hours || hours <= 0){ alert("请填写预计用时，比如 2 小时"); return; }
+      if(earliestStart && earliestStart > deadline){ alert("最早开始日期不能晚于截止日期"); return; }
+
+      if(editingTaskId){
+        var t = state.tasks.find(function(x){return x.id===editingTaskId;});
+        t.name = name; t.deadline = deadline; t.hours = hours; t.priority = priority; t.earliestStart = earliestStart;
+        // 用时改了之后，剩余小时数可能从 0 变回正数（重新打开），或者反过来变成 0（自动完成）
+        if(remainingHoursOf(t) <= 0.001){ t.done = true; }
+        else if(t.done){ t.done = false; }
+        editingTaskId = null;
+        document.getElementById("taskFormTitle").textContent = "添加任务";
+        document.getElementById("saveTaskBtn").textContent = "添加";
+        document.getElementById("cancelTaskBtn").style.display = "none";
+      } else {
+        state.tasks.push({ id: uid(), name: name, deadline: deadline, hours: hours, priority: priority, earliestStart: earliestStart, done: false });
+      }
+      clearTaskForm();
+      saveData();
+      render();
+    });
+
+    document.getElementById("cancelTaskBtn").addEventListener("click", function(){
+      editingTaskId = null;
+      clearTaskForm();
+      document.getElementById("taskFormTitle").textContent = "添加任务";
+      document.getElementById("saveTaskBtn").textContent = "添加";
+      document.getElementById("cancelTaskBtn").style.display = "none";
+    });
+  }
+
+  function clearTaskForm(){
+    document.getElementById("taskName").value = "";
+    document.getElementById("taskDeadline").value = "";
+    document.getElementById("taskHours").value = "";
+    document.getElementById("taskPriority").value = "2";
+    document.getElementById("taskEarliestStart").value = "";
+  }
+
+  function initFixedForm(){
+    document.getElementById("fixedType").addEventListener("change", function(){
+      var v = this.value;
+      document.getElementById("fixedDateField").style.display = v === "once" ? "block" : "none";
+      document.getElementById("fixedRangeField").style.display = v === "range" ? "flex" : "none";
+      document.getElementById("fixedWeekdayField").style.display = v === "weekly" ? "block" : "none";
+    });
+
+    document.getElementById("saveFixedBtn").addEventListener("click", function(){
+      var name = document.getElementById("fixedName").value.trim();
+      var type = document.getElementById("fixedType").value;
+      var date = document.getElementById("fixedDate").value;
+      var rangeStart = document.getElementById("fixedRangeStart").value;
+      var rangeEnd = document.getElementById("fixedRangeEnd").value;
+      var weekday = document.getElementById("fixedWeekday").value;
+      var start = document.getElementById("fixedStart").value;
+      var end = document.getElementById("fixedEnd").value;
+
+      if(!name){ alert("请填写名称"); return; }
+      if(type === "once" && !date){ alert("请选择日期"); return; }
+      if(type === "range"){
+        if(!rangeStart || !rangeEnd){ alert("请选择开始和结束日期"); return; }
+        if(rangeEnd < rangeStart){ alert("结束日期要晚于或等于开始日期"); return; }
+      }
+      if(!start || !end){ alert("请填写开始和结束时间"); return; }
+      if(end <= start){ alert("结束时间要晚于开始时间"); return; }
+
+      if(type === "range" && editingFixedId){
+        // editing an existing entry never uses range mode, guard just in case
+        alert("这一项是单独编辑的，日期范围只用于新增，请用单次日期修改这一天");
+        return;
+      }
+
+      if(editingFixedId){
+        var f = state.fixedBlocks.find(function(x){return x.id===editingFixedId;});
+        f.name = name; f.type = type; f.date = date; f.weekday = weekday; f.start = start; f.end = end;
+        editingFixedId = null;
+        document.getElementById("fixedFormTitle").textContent = "添加固定安排";
+        document.getElementById("saveFixedBtn").textContent = "添加";
+        document.getElementById("cancelFixedBtn").style.display = "none";
+      } else if(type === "range"){
+        var d0 = parseISODate(rangeStart);
+        var d1 = parseISODate(rangeEnd);
+        var span = Math.round((d1 - d0) / 86400000);
+        if(span > 90){ alert("日期范围太长了，最多支持 90 天，可以分几次加"); return; }
+        for(var i=0;i<=span;i++){
+          var iso = toISODate(addDays(d0, i));
+          state.fixedBlocks.push({ id: uid(), name: name, type: "once", date: iso, weekday: "1", start: start, end: end });
+        }
+      } else {
+        state.fixedBlocks.push({ id: uid(), name: name, type: type, date: date, weekday: weekday, start: start, end: end });
+      }
+      clearFixedForm();
+      saveData();
+      render();
+    });
+
+    document.getElementById("cancelFixedBtn").addEventListener("click", function(){
+      editingFixedId = null;
+      clearFixedForm();
+      document.getElementById("fixedFormTitle").textContent = "添加固定安排";
+      document.getElementById("saveFixedBtn").textContent = "添加";
+      document.getElementById("cancelFixedBtn").style.display = "none";
+    });
+  }
+
+  function clearFixedForm(){
+    document.getElementById("fixedName").value = "";
+    document.getElementById("fixedType").value = "once";
+    document.getElementById("fixedDate").value = "";
+    document.getElementById("fixedRangeStart").value = "";
+    document.getElementById("fixedRangeEnd").value = "";
+    document.getElementById("fixedWeekday").value = "1";
+    document.getElementById("fixedStart").value = "09:00";
+    document.getElementById("fixedEnd").value = "10:00";
+    document.getElementById("fixedDateField").style.display = "block";
+    document.getElementById("fixedRangeField").style.display = "none";
+    document.getElementById("fixedWeekdayField").style.display = "none";
+  }
+
+  function initListActions(){
+    document.getElementById("taskList").addEventListener("click", handleTaskListClick);
+    document.getElementById("fixedList").addEventListener("click", handleFixedListClick);
+  }
+
+  // 列表视图里“今天”和“过去”那些块前面的勾选框，用事件委托绑在 #timelineContent 上，
+  // 这样每次 render() 重画内容也不用重新绑定。
+  function initListCheckboxes(){
+    document.getElementById("timelineContent").addEventListener("change", function(e){
+      if(!e.target.classList || !e.target.classList.contains("block-check")) return;
+      var taskId = e.target.dataset.taskId;
+      var dateIso = e.target.dataset.date;
+      var hours = parseFloat(e.target.dataset.hours);
+      handleBlockCheckboxChange(taskId, dateIso, hours, e.target.checked);
+    });
+  }
+
+  function handleBlockCheckboxChange(taskId, dateIso, hours, checked){
+    var task = state.tasks.find(function(t){ return t.id === taskId; });
+    if(!task || !dateIso || !(hours > 0)) return;
+    if(!task.completions) task.completions = {};
+    if(checked){
+      task.completions[dateIso] = hours;
+      if(remainingHoursOf(task) <= 0.001) task.done = true;
+    } else {
+      delete task.completions[dateIso];
+      if(task.done && remainingHoursOf(task) > 0.001) task.done = false;
+    }
+    saveData();
+    render();
+  }
+
+  function handleTaskListClick(e){
+    var btn = e.target.closest("button");
+    if(!btn) return;
+    var id = btn.dataset.id;
+    var action = btn.dataset.action;
+    if(!state.tasks.find(function(t){return t.id===id;})) return;
+
+    if(action === "toggleDone"){
+      toggleTaskDone(id);
+    } else if(action === "editTask"){
+      startEditTask(id);
+    } else if(action === "deleteTask"){
+      deleteTaskConfirm(id);
+    }
+  }
+
+  // ---------- shared task/fixed actions ----------
+  // 抽出来的原因：日历视图点开某一天之后的弹窗（day-detail modal）里，编辑/删除/标记完成
+  // 这几个按钮要做的事跟左边任务列表、固定安排列表里的按钮完全一样，不想维护两份逻辑。
+  function toggleTaskDone(id){
+    var task = state.tasks.find(function(t){return t.id===id;});
+    if(!task) return;
+    if(!task.done){
+      // 标记完成 = 把剩余小时数一次性记为今天完成
+      var remaining = remainingHoursOf(task);
+      if(remaining > 0.001){
+        var todayIso = toISODate(new Date());
+        if(!task.completions) task.completions = {};
+        task.completions[todayIso] = (task.completions[todayIso] || 0) + remaining;
+      }
+      task.done = true;
+    } else {
+      // 标记未完成：只翻回“未完成”这个标记，不动已经记录的完成小时数
+      task.done = false;
+    }
+    saveData(); render();
+  }
+
+  function startEditTask(id){
+    var task = state.tasks.find(function(t){return t.id===id;});
+    if(!task) return;
+    var tab = document.querySelector('.tab[data-tab="tasks"]');
+    if(tab) tab.click();
+    editingTaskId = id;
+    document.getElementById("taskName").value = task.name;
+    document.getElementById("taskDeadline").value = task.deadline;
+    document.getElementById("taskHours").value = task.hours;
+    document.getElementById("taskPriority").value = task.priority;
+    document.getElementById("taskEarliestStart").value = task.earliestStart || "";
+    document.getElementById("taskFormTitle").textContent = "编辑任务";
+    document.getElementById("saveTaskBtn").textContent = "保存修改";
+    document.getElementById("cancelTaskBtn").style.display = "block";
+  }
+
+  function deleteTaskConfirm(id){
+    var task = state.tasks.find(function(t){return t.id===id;});
+    if(!task) return;
+    askConfirm("删除任务", "确定删除“"+task.name+"”吗？", function(){
+      state.tasks = state.tasks.filter(function(t){return t.id!==id;});
+      saveData(); render(); refreshDayDetail();
+    });
+  }
+
+  function handleFixedListClick(e){
+    var btn = e.target.closest("button");
+    if(!btn) return;
+    var id = btn.dataset.id;
+    var action = btn.dataset.action;
+    if(!state.fixedBlocks.find(function(f){return f.id===id;})) return;
+
+    if(action === "editFixed"){
+      startEditFixed(id);
+    } else if(action === "deleteFixed"){
+      deleteFixedConfirm(id);
+    }
+  }
+
+  function startEditFixed(id){
+    var fb = state.fixedBlocks.find(function(f){return f.id===id;});
+    if(!fb) return;
+    var tab = document.querySelector('.tab[data-tab="fixed"]');
+    if(tab) tab.click();
+    editingFixedId = id;
+    document.getElementById("fixedName").value = fb.name;
+    document.getElementById("fixedType").value = fb.type;
+    document.getElementById("fixedDate").value = fb.date || "";
+    document.getElementById("fixedWeekday").value = fb.weekday || "1";
+    document.getElementById("fixedStart").value = fb.start;
+    document.getElementById("fixedEnd").value = fb.end;
+    document.getElementById("fixedDateField").style.display = fb.type==="weekly" ? "none" : "block";
+    document.getElementById("fixedRangeField").style.display = "none";
+    document.getElementById("fixedWeekdayField").style.display = fb.type==="weekly" ? "block" : "none";
+    document.getElementById("fixedFormTitle").textContent = "编辑固定安排";
+    document.getElementById("saveFixedBtn").textContent = "保存修改";
+    document.getElementById("cancelFixedBtn").style.display = "block";
+  }
+
+  function deleteFixedConfirm(id){
+    var fb = state.fixedBlocks.find(function(f){return f.id===id;});
+    if(!fb) return;
+    askConfirm("删除固定安排", "确定删除“"+fb.name+"”吗？", function(){
+      state.fixedBlocks = state.fixedBlocks.filter(function(f){return f.id!==id;});
+      saveData(); render(); refreshDayDetail();
+    });
+  }
+
+  // ---------- view toggle & calendar nav ----------
+  function initViewToggle(){
+    document.getElementById("viewListBtn").addEventListener("click", function(){
+      state.settings.viewMode = "list";
+      saveData(); renderTimeline();
+    });
+    document.getElementById("viewCalendarBtn").addEventListener("click", function(){
+      state.settings.viewMode = "calendar";
+      calYear = today0.getFullYear();
+      calMonth = today0.getMonth();
+      saveData(); renderTimeline();
+    });
+  }
+
+  function initCalendarNav(){
+    document.getElementById("calPrevBtn").addEventListener("click", function(){
+      calMonth -= 1;
+      if(calMonth < 0){ calMonth = 11; calYear -= 1; }
+      renderTimeline();
+    });
+    document.getElementById("calNextBtn").addEventListener("click", function(){
+      calMonth += 1;
+      if(calMonth > 11){ calMonth = 0; calYear += 1; }
+      renderTimeline();
+    });
+    document.getElementById("calTodayBtn").addEventListener("click", function(){
+      calYear = today0.getFullYear();
+      calMonth = today0.getMonth();
+      renderTimeline();
+    });
+  }
+
+  function initCalendarClicks(){
+    document.getElementById("timelineContent").addEventListener("click", function(e){
+      var cell = e.target.closest(".calendar-cell");
+      if(!cell) return;
+      openDayDetail(cell.dataset.iso);
+    });
+    document.getElementById("closeDayDetailBtn").addEventListener("click", function(){
+      document.getElementById("dayDetailModal").classList.remove("show");
+    });
+  }
+
+  // ---------- ics parsing ----------
+  function unfoldIcsLines(text){
+    var rawLines = text.split(/\r\n|\n|\r/);
+    var lines = [];
+    rawLines.forEach(function(line){
+      if((line[0] === " " || line[0] === "\t") && lines.length){
+        lines[lines.length-1] += line.slice(1);
+      } else {
+        lines.push(line);
+      }
+    });
+    return lines;
+  }
+
+  function unescapeIcsText(s){
+    return s.replace(/\\n/gi, " ").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\").trim();
+  }
+
+  function parseIcsDateValue(raw){
+    var isUTC = /Z$/.test(raw);
+    var m = raw.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/);
+    if(!m) return null;
+    var y = +m[1], mo = +m[2], d = +m[3];
+    var hasTime = m[4] !== undefined;
+    var h = hasTime ? +m[4] : 0;
+    var mi = hasTime ? +m[5] : 0;
+    var s = hasTime ? +m[6] : 0;
+    var dateObj = isUTC && hasTime ? new Date(Date.UTC(y, mo-1, d, h, mi, s)) : new Date(y, mo-1, d, h, mi, s);
+    return { date: dateObj, allDay: !hasTime };
+  }
+
+  function extractVEvents(text){
+    var lines = unfoldIcsLines(text);
+    var events = [];
+    var cur = null;
+    lines.forEach(function(line){
+      if(line.indexOf("BEGIN:VEVENT") === 0){ cur = {}; }
+      else if(line.indexOf("END:VEVENT") === 0){ if(cur) events.push(cur); cur = null; }
+      else if(cur){
+        var idx = line.indexOf(":");
+        if(idx === -1) return;
+        var left = line.slice(0, idx);
+        var value = line.slice(idx+1);
+        var semi = left.indexOf(";");
+        var key = (semi === -1 ? left : left.slice(0, semi)).toUpperCase();
+        if(key === "SUMMARY") cur.summary = unescapeIcsText(value);
+        else if(key === "DTSTART") cur.dtstartRaw = value;
+        else if(key === "DTEND") cur.dtendRaw = value;
+        else if(key === "RRULE") cur.rrule = value;
+      }
+    });
+    return events;
+  }
+
+  function pad2(n){ return (n<10?"0":"")+n; }
+
+  function icsEventToCandidate(ev, sourceLabel){
+    if(!ev.summary || !ev.dtstartRaw) return null;
+    var start = parseIcsDateValue(ev.dtstartRaw);
+    if(!start) return null;
+    if(start.allDay){
+      return { name: ev.summary, source: sourceLabel, skippedAllDay: true };
+    }
+    var end = ev.dtendRaw ? parseIcsDateValue(ev.dtendRaw) : null;
+    var endDate = (end && !end.allDay) ? end.date : new Date(start.date.getTime() + 60*60*1000);
+
+    var weekly = false, unsupportedRecurrence = false;
+    if(ev.rrule){
+      if(/FREQ=WEEKLY/i.test(ev.rrule)) weekly = true;
+      else unsupportedRecurrence = true;
+    }
+
+    var startTime = pad2(start.date.getHours())+":"+pad2(start.date.getMinutes());
+    var endTime = pad2(endDate.getHours())+":"+pad2(endDate.getMinutes());
+    if(endTime <= startTime){
+      var bumped = new Date(start.date.getTime() + 30*60000);
+      endTime = pad2(bumped.getHours())+":"+pad2(bumped.getMinutes());
+    }
+
+    return {
+      name: ev.summary,
+      source: sourceLabel,
+      skippedAllDay: false,
+      type: weekly ? "weekly" : "once",
+      weekday: start.date.getDay(),
+      date: toISODate(start.date),
+      start: startTime,
+      end: endTime,
+      unsupportedRecurrence: unsupportedRecurrence,
+      checked: true
+    };
+  }
+
+  // ---------- ics import modal ----------
+  var icsCandidates = [];
+
+  function initIcsImport(){
+    document.getElementById("icsImportBtn").addEventListener("click", function(){
+      icsCandidates = [];
+      document.getElementById("icsFileInput").value = "";
+      document.getElementById("icsPreview").innerHTML = "";
+      document.getElementById("icsSummary").textContent = "";
+      document.getElementById("icsModal").classList.add("show");
+    });
+    document.getElementById("icsCancelBtn").addEventListener("click", function(){
+      document.getElementById("icsModal").classList.remove("show");
+    });
+    document.getElementById("icsFileInput").addEventListener("change", handleIcsFiles);
+    document.getElementById("icsToggleAllBtn").addEventListener("click", function(){
+      var allChecked = icsCandidates.filter(function(c){return !c.skippedAllDay;}).every(function(c){return c.checked;});
+      icsCandidates.forEach(function(c){ if(!c.skippedAllDay) c.checked = !allChecked; });
+      renderIcsPreview();
+    });
+    document.getElementById("icsPreview").addEventListener("change", function(e){
+      if(e.target.type === "checkbox"){
+        var idx = parseInt(e.target.dataset.idx, 10);
+        icsCandidates[idx].checked = e.target.checked;
+      }
+    });
+    document.getElementById("icsConfirmBtn").addEventListener("click", commitIcsImport);
+  }
+
+  function handleIcsFiles(e){
+    var files = Array.prototype.slice.call(e.target.files || []);
+    if(!files.length) return;
+    var readers = files.map(function(file){
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onload = function(){ resolve({ name: file.name, text: reader.result }); };
+        reader.onerror = function(){ resolve({ name: file.name, text: "" }); };
+        reader.readAsText(file);
+      });
+    });
+    Promise.all(readers).then(function(results){
+      var all = [];
+      results.forEach(function(r){
+        var events = extractVEvents(r.text || "");
+        events.forEach(function(ev){
+          var candidate = icsEventToCandidate(ev, r.name);
+          if(candidate) all.push(candidate);
+        });
+      });
+      icsCandidates = all;
+      renderIcsPreview();
+    });
+  }
+
+  function renderIcsPreview(){
+    var preview = document.getElementById("icsPreview");
+    var summary = document.getElementById("icsSummary");
+
+    if(icsCandidates.length === 0){
+      preview.innerHTML = "";
+      summary.textContent = "没有找到可以识别的事件";
+      return;
+    }
+
+    var importable = icsCandidates.filter(function(c){ return !c.skippedAllDay; });
+    var skipped = icsCandidates.filter(function(c){ return c.skippedAllDay; });
+    var checkedCount = importable.filter(function(c){ return c.checked; }).length;
+
+    var html = icsCandidates.map(function(c, idx){
+      if(c.skippedAllDay){
+        return '<div class="ics-row skip">'
+          + '<span></span>'
+          + '<div><strong>'+escapeHtml(c.name)+'</strong><span class="meta">来自 '+escapeHtml(c.source)+' · 全天事件，不会导入</span></div>'
+          + '</div>';
+      }
+      var when = c.type === "weekly" ? ("每周 "+WEEKDAY_LABELS[c.weekday]) : c.date;
+      var note = c.unsupportedRecurrence ? '<span class="note">这个事件按其他规则重复，只导入了第一次出现的日期</span>' : "";
+      return '<div class="ics-row">'
+        + '<input type="checkbox" data-idx="'+idx+'" '+(c.checked?'checked':'')+'>'
+        + '<div><strong>'+escapeHtml(c.name)+'</strong><span class="meta">来自 '+escapeHtml(c.source)+' · '+when+' · '+c.start+' - '+c.end+'</span>'+note+'</div>'
+        + '</div>';
+    }).join("");
+
+    preview.innerHTML = html;
+    summary.textContent = "共识别到 "+icsCandidates.length+" 个事件，其中 "+importable.length+" 个可以导入，已勾选 "+checkedCount+" 个"
+      + (skipped.length ? "，"+skipped.length+" 个全天事件被跳过" : "");
+  }
+
+  function commitIcsImport(){
+    var toAdd = icsCandidates.filter(function(c){ return !c.skippedAllDay && c.checked; });
+    if(toAdd.length === 0){
+      alert("请至少勾选一个要导入的事件");
+      return;
+    }
+    toAdd.forEach(function(c){
+      state.fixedBlocks.push({
+        id: uid(), name: c.name, type: c.type,
+        date: c.type === "once" ? c.date : "",
+        weekday: c.type === "weekly" ? String(c.weekday) : "1",
+        start: c.start, end: c.end
+      });
+    });
+    document.getElementById("icsModal").classList.remove("show");
+    saveData();
+    render();
+  }
+
+  // ---------- calendar integration ----------
+  // 方向一：从苹果日历读取“学习安排”之外所有日历的占用时间，导入成固定安排，
+  // 名称统一加“日历 ”前缀，方便和手动添加的区分；重复点击会先删掉上一次带这个
+  // 前缀的条目再重新导入，不会越堆越多。
+  // 方向二：把当前排好的日程（9:00-22:00 窗口内扣掉固定安排后的空档）写进
+  // “学习安排”日历，写之前会先清空这个日历。这两个方向在主进程里都被硬编码
+  // 限定只能碰“学习安排”这一个日历，见 main.js 里的说明。
+  var CAL_IMPORT_PREFIX = "日历";
+  var DAY_WINDOW_START = "09:00";
+  var DAY_WINDOW_END = "22:00";
+
+  function parseLocalIso(s){
+    var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+    if(!m) return new Date(NaN);
+    return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+  }
+
+  // 把一个可能跨天的日历事件切成按天的时间段
+  function splitEventsIntoBlocks(events){
+    var blocks = [];
+    events.forEach(function(ev){
+      var s = parseLocalIso(ev.startIso);
+      var e = parseLocalIso(ev.endIso);
+      if(!(e > s)) return;
+      var cursor = new Date(s);
+      while(cursor < e){
+        var dayEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()+1, 0,0,0);
+        var segEnd = e < dayEnd ? e : dayEnd;
+        var iso = toISODate(cursor);
+        var startStr = pad2(cursor.getHours())+":"+pad2(cursor.getMinutes());
+        var endStr = segEnd.getTime() === dayEnd.getTime() ? "23:59" : (pad2(segEnd.getHours())+":"+pad2(segEnd.getMinutes()));
+        if(endStr > startStr){
+          blocks.push({ date: iso, start: startStr, end: endStr, name: ev.name || "未命名事件" });
+        }
+        cursor = segEnd;
+      }
+    });
+    return blocks;
+  }
+
+  function handleCalendarRead(){
+    if(!window.calendarBridge){ alert("当前环境不支持日历功能（需要在打包后的桌面应用里运行）"); return; }
+    var btn = document.getElementById("calReadBtn");
+    btn.disabled = true; btn.textContent = "读取中…";
+    window.calendarBridge.readBusy().then(function(result){
+      btn.disabled = false; btn.textContent = "从日历读取占用";
+      if(!result || !result.ok){
+        alert("读取日历失败：" + ((result && result.error) || "未知错误"));
+        return;
+      }
+
+      // 先删掉上一次导入的“日历 ”前缀条目，避免越堆越多
+      state.fixedBlocks = state.fixedBlocks.filter(function(f){
+        return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0;
+      });
+
+      var newBlocks = splitEventsIntoBlocks(result.events || []);
+      newBlocks.forEach(function(b){
+        state.fixedBlocks.push({
+          id: uid(),
+          name: CAL_IMPORT_PREFIX + " " + b.name,
+          type: "once",
+          date: b.date,
+          weekday: String(parseISODate(b.date).getDay()),
+          start: b.start,
+          end: b.end
+        });
+      });
+
+      // 疑似重复检测：新导入的条目 vs 其他手动添加的条目，同一天（或同一个星期几）
+      // 且时间段有重叠，就列出来让用户自己判断，不自动删除任何一条。
+      var manualBlocks = state.fixedBlocks.filter(function(f){ return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0; });
+      var importedBlocks = state.fixedBlocks.filter(function(f){ return f.name.indexOf(CAL_IMPORT_PREFIX + " ") === 0; });
+      var dupes = [];
+      importedBlocks.forEach(function(ib){
+        manualBlocks.forEach(function(mb){
+          var sameDay = mb.type === "weekly"
+            ? String(mb.weekday) === String(parseISODate(ib.date).getDay())
+            : mb.date === ib.date;
+          if(sameDay && rangesOverlap(ib.start, ib.end, mb.start, mb.end)){
+            dupes.push({ imported: ib, manual: mb });
+          }
+        });
+      });
+
+      saveData();
+      render();
+      showCalImportResult(newBlocks.length, dupes);
+    }).catch(function(err){
+      btn.disabled = false; btn.textContent = "从日历读取占用";
+      alert("读取日历失败：" + err.message);
+    });
+  }
+
+  function showCalImportResult(count, dupes){
+    var html = "<p>本次从其他日历读取并导入了 "+count+" 条固定安排，名称都加了“日历”前缀。</p>";
+    if(dupes.length){
+      html += "<p>发现 "+dupes.length+" 处疑似和你手动添加的条目重复，请自己确认要不要删掉其中一条（不会自动删除）：</p>";
+      html += '<div class="bulk-preview">';
+      dupes.forEach(function(d){
+        var mWhen = d.manual.type === "weekly" ? ("每周 "+WEEKDAY_LABELS[Number(d.manual.weekday)]) : d.manual.date;
+        html += '<div class="bulk-row err">'
+          + '导入：'+escapeHtml(d.imported.name)+'（'+d.imported.date+' '+d.imported.start+'-'+d.imported.end+'）<br>'
+          + '手动：'+escapeHtml(d.manual.name)+'（'+mWhen+' '+d.manual.start+'-'+d.manual.end+'）'
+          + '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += "<p>没有发现疑似重复的条目。</p>";
+    }
+    document.getElementById("calImportBody").innerHTML = html;
+    document.getElementById("calImportModal").classList.add("show");
+  }
+
+  // 计算某天在 9:00-22:00 窗口内、扣掉所有固定安排之后剩下的空档
+  function computeFreeGaps(day){
+    var winStart = timeToMinutes(DAY_WINDOW_START);
+    var winEnd = timeToMinutes(DAY_WINDOW_END);
+    var busy = day.fixed.map(function(f){
+      return [Math.max(winStart, timeToMinutes(f.start)), Math.min(winEnd, timeToMinutes(f.end))];
+    }).filter(function(iv){ return iv[1] > iv[0]; });
+    busy.sort(function(a,b){ return a[0]-b[0]; });
+    var merged = [];
+    busy.forEach(function(iv){
+      if(merged.length && iv[0] <= merged[merged.length-1][1]){
+        merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], iv[1]);
+      } else {
+        merged.push(iv.slice());
+      }
+    });
+    var gaps = [];
+    var cursor = winStart;
+    merged.forEach(function(iv){
+      if(iv[0] > cursor) gaps.push([cursor, iv[0]]);
+      cursor = Math.max(cursor, iv[1]);
+    });
+    if(cursor < winEnd) gaps.push([cursor, winEnd]);
+    return gaps;
+  }
+
+  // 把当前排好的日程（computeSchedule 的结果）按天塞进 9:00-22:00 的空档里，
+  // 凑不出当天所需小时数的部分不会硬塞，会记录进 shortDays 里报告给用户。
+  function buildCalendarEventsForSync(){
+    var schedule = computeSchedule();
+    var events = [];
+    var shortDays = [];
+    schedule.dates.forEach(function(iso){
+      var day = schedule.byDate[iso];
+      if(!day.tasks.length) return;
+      var gaps = computeFreeGaps(day);
+      var gapIdx = 0;
+      var dayShortfalls = [];
+      day.tasks.forEach(function(t){
+        var remainMin = Math.round(t.hours*60);
+        while(remainMin > 0.5 && gapIdx < gaps.length){
+          var gap = gaps[gapIdx];
+          var gapLen = gap[1]-gap[0];
+          if(gapLen <= 0.5){ gapIdx++; continue; }
+          var take = Math.min(gapLen, remainMin);
+          events.push({ date: iso, start: minutesToTime(gap[0]), end: minutesToTime(gap[0]+take), name: t.name });
+          gap[0] += take;
+          remainMin -= take;
+        }
+        if(remainMin > 0.5){
+          dayShortfalls.push({ name: t.name, shortHours: Math.round((remainMin/60)*10)/10 });
+        }
+      });
+      if(dayShortfalls.length){
+        shortDays.push({ date: iso, shortfalls: dayShortfalls });
+      }
+    });
+    return { events: events, shortDays: shortDays };
+  }
+
+  function handleCalendarSyncClick(){
+    if(!window.calendarBridge){ alert("当前环境不支持日历功能（需要在打包后的桌面应用里运行）"); return; }
+    askConfirm("同步到日历", "这会先清空“学习安排”日历里的所有事件，再按当前排好的日程重新写入。这个操作只影响“学习安排”这一个日历，确定继续吗？", function(){
+      doCalendarSync();
+    });
+  }
+
+  function doCalendarSync(){
+    var packed = buildCalendarEventsForSync();
+    var btn = document.getElementById("calSyncBtn");
+    btn.disabled = true; btn.textContent = "同步中…";
+    window.calendarBridge.syncToCalendar(packed.events).then(function(result){
+      btn.disabled = false; btn.textContent = "同步到日历";
+      if(!result || !result.ok){
+        alert("同步失败：" + ((result && result.error) || "未知错误"));
+        return;
+      }
+      state.settings.lastSyncAt = Date.now();
+      saveData();
+      showCalSyncResult(packed.events.length, packed.shortDays);
+    }).catch(function(err){
+      btn.disabled = false; btn.textContent = "同步到日历";
+      alert("同步失败：" + err.message);
+    });
+  }
+
+  // ---------- 自动同步 ----------
+  // 触发点：应用启动时（如果开关是开的）、每天早上 7 点、界面上任何改动之后隔
+  // 一分钟（防抖，避免连续操作时反复触发）。触发前都会先静默读一遍日历占用，
+  // 保证排程避开的是最新的安排。全程只操作“学习安排”这一个日历，限制写在
+  // main.js 里，跟手动点按钮走的是同一套硬编码限制。
+  var autoSyncBusy = false;
+  var autoSyncDebounceTimer = null;
+  var lastDailyAutoSyncDateStr = null;
+
+  function armAutoSyncDebounce(){
+    if(!state.settings.autoSync) return;
+    if(autoSyncDebounceTimer) clearTimeout(autoSyncDebounceTimer);
+    autoSyncDebounceTimer = setTimeout(function(){
+      autoSyncDebounceTimer = null;
+      silentSyncNow();
+    }, 60000);
+  }
+
+  function checkDailyAutoSync(){
+    if(!state.settings.autoSync) return;
+    var now = new Date();
+    var todayStr = toISODate(now);
+    if(now.getHours() === 7 && lastDailyAutoSyncDateStr !== todayStr){
+      lastDailyAutoSyncDateStr = todayStr;
+      silentSyncNow();
+    }
+  }
+
+  // 静默版本：不弹窗、不报告疑似重复，只是把当前占用和排程同步一遍
+  function silentSyncNow(){
+    if(!window.calendarBridge) return Promise.resolve();
+    if(autoSyncBusy) return Promise.resolve();
+    autoSyncBusy = true;
+    return window.calendarBridge.readBusy().then(function(result){
+      if(result && result.ok){
+        state.fixedBlocks = state.fixedBlocks.filter(function(f){
+          return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0;
+        });
+        var newBlocks = splitEventsIntoBlocks(result.events || []);
+        newBlocks.forEach(function(b){
+          state.fixedBlocks.push({
+            id: uid(),
+            name: CAL_IMPORT_PREFIX + " " + b.name,
+            type: "once",
+            date: b.date,
+            weekday: String(parseISODate(b.date).getDay()),
+            start: b.start,
+            end: b.end
+          });
+        });
+        saveData();
+        render();
+      } else {
+        console.warn("自动同步：读取日历占用失败", result && result.error);
+      }
+      var packed = buildCalendarEventsForSync();
+      return window.calendarBridge.syncToCalendar(packed.events).then(function(syncResult){
+        if(syncResult && syncResult.ok){
+          state.settings.lastSyncAt = Date.now();
+          saveData();
+        } else {
+          console.warn("自动同步：写入日历失败", syncResult && syncResult.error);
+        }
+        return syncResult;
+      });
+    }).catch(function(err){
+      console.warn("自动同步失败", err);
+    }).then(function(res){
+      autoSyncBusy = false;
+      return res;
+    });
+  }
+
+  function initAutoSync(){
+    if(window.calendarBridge && window.calendarBridge.onRequestSync){
+      window.calendarBridge.onRequestSync(function(){ silentSyncNow(); });
+    }
+    if(state.settings.autoSync){
+      silentSyncNow();
+    }
+    setInterval(checkDailyAutoSync, 60*1000);
+  }
+
+  function showCalSyncResult(eventCount, shortDays){
+    var html = "<p>已清空“学习安排”日历，并写入了 "+eventCount+" 个任务事件（时间窗口 9:00-22:00）。</p>";
+    if(shortDays.length){
+      html += "<p>以下这些天，空档不够排完当天分配的任务时间，没有硬塞，需要你自己调整（比如提高每日上限或者调整固定安排）：</p>";
+      html += '<div class="bulk-preview">';
+      shortDays.forEach(function(d){
+        var lines = d.shortfalls.map(function(s){ return escapeHtml(s.name)+" 还差 "+fmtHours(s.shortHours); }).join("，");
+        html += '<div class="bulk-row err">'+d.date+'：'+lines+'</div>';
+      });
+      html += '</div>';
+    } else {
+      html += "<p>所有天的任务都排进了空档里，没有排不下的情况。</p>";
+    }
+    document.getElementById("calSyncResultBody").innerHTML = html;
+    document.getElementById("calSyncResultModal").classList.add("show");
+  }
+
+  function initCalendarIntegration(){
+    document.getElementById("calReadBtn").addEventListener("click", handleCalendarRead);
+    document.getElementById("calSyncBtn").addEventListener("click", handleCalendarSyncClick);
+    document.getElementById("closeCalImportBtn").addEventListener("click", function(){
+      document.getElementById("calImportModal").classList.remove("show");
+    });
+    document.getElementById("closeCalSyncResultBtn").addEventListener("click", function(){
+      document.getElementById("calSyncResultModal").classList.remove("show");
+    });
+  }
+
+  // ---------- bulk import ----------
+  function initBulkImport(){
+    document.getElementById("bulkImportBtn").addEventListener("click", function(){
+      document.getElementById("bulkTextarea").value = "";
+      document.getElementById("bulkPreview").innerHTML = "";
+      document.getElementById("bulkSummary").textContent = "";
+      document.getElementById("bulkModal").classList.add("show");
+      document.getElementById("bulkTextarea").focus();
+    });
+    document.getElementById("bulkCancelBtn").addEventListener("click", function(){
+      document.getElementById("bulkModal").classList.remove("show");
+    });
+    document.getElementById("bulkTextarea").addEventListener("input", renderBulkPreview);
+    document.getElementById("bulkConfirmBtn").addEventListener("click", commitBulkImport);
+  }
+
+  function parseBulkTextarea(){
+    var text = document.getElementById("bulkTextarea").value;
+    var base = new Date();
+    return text.split("\n").map(function(line){ return parseBulkLine(line, base); }).filter(function(r){ return r !== null; });
+  }
+
+  function renderBulkPreview(){
+    var rows = parseBulkTextarea();
+    var preview = document.getElementById("bulkPreview");
+    var summary = document.getElementById("bulkSummary");
+
+    if(rows.length === 0){
+      preview.innerHTML = "";
+      summary.textContent = "";
+      return;
+    }
+
+    var okCount = 0;
+    var html = rows.map(function(r){
+      if(r.errors.length === 0){
+        okCount++;
+        return '<div class="bulk-row">'+escapeHtml(r.name)+' · 截止 '+r.deadline+' · 预计 '+fmtHours(r.hours)+' · 优先级'+priorityLabel(r.priority)+(r.earliestStart ? (' · 最早开始 '+r.earliestStart) : '')+'</div>';
+      } else {
+        return '<div class="bulk-row err">“'+escapeHtml(r.raw.trim())+'” 这行有问题：'+r.errors.join('，')+'</div>';
+      }
+    }).join("");
+
+    preview.innerHTML = html;
+    summary.textContent = "共 "+rows.length+" 行，"+okCount+" 行可以添加"+(rows.length-okCount>0 ? "，"+(rows.length-okCount)+" 行有问题不会被添加" : "");
+  }
+
+  function commitBulkImport(){
+    var rows = parseBulkTextarea().filter(function(r){ return r.errors.length === 0; });
+    if(rows.length === 0){
+      alert("没有可以添加的任务，请检查格式");
+      return;
+    }
+    rows.forEach(function(r){
+      state.tasks.push({ id: uid(), name: r.name, deadline: r.deadline, hours: r.hours, priority: r.priority, earliestStart: r.earliestStart || "", done: false });
+    });
+    document.getElementById("bulkModal").classList.remove("show");
+    saveData();
+    render();
+  }
+
+  // ---------- settings modal ----------
+  function formatDateTime(ts){
+    var d = new Date(ts);
+    function p(n){ return (n<10?"0":"")+n; }
+    return toISODate(d) + " " + p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+  }
+
+  function initSettings(){
+    document.getElementById("settingsBtn").addEventListener("click", function(){
+      document.getElementById("capacityInput").value = state.settings.capacityHours;
+      document.getElementById("horizonSel").value = state.settings.horizonDays;
+      document.getElementById("autoLaunchInput").checked = state.settings.autoLaunch !== false;
+      document.getElementById("autoSyncInput").checked = !!state.settings.autoSync;
+      document.getElementById("lastSyncDisplay").textContent = state.settings.lastSyncAt ? formatDateTime(state.settings.lastSyncAt) : "还没有同步过";
+      document.getElementById("settingsModal").classList.add("show");
+    });
+    document.getElementById("closeSettingsBtn").addEventListener("click", function(){
+      document.getElementById("settingsModal").classList.remove("show");
+    });
+    document.getElementById("saveSettingsBtn").addEventListener("click", function(){
+      var cap = parseFloat(document.getElementById("capacityInput").value);
+      var horizon = parseInt(document.getElementById("horizonSel").value, 10);
+      if(!cap || cap <= 0){ alert("请填写一个大于 0 的时间上限"); return; }
+      state.settings.capacityHours = cap;
+      state.settings.horizonDays = horizon;
+
+      var newAutoLaunch = document.getElementById("autoLaunchInput").checked;
+      var newAutoSync = document.getElementById("autoSyncInput").checked;
+      var autoLaunchChanged = newAutoLaunch !== (state.settings.autoLaunch !== false);
+      state.settings.autoLaunch = newAutoLaunch;
+      state.settings.autoSync = newAutoSync;
+
+      document.getElementById("settingsModal").classList.remove("show");
+      saveData(); render();
+
+      if(autoLaunchChanged && window.appBridge){
+        window.appBridge.setAutoLaunch(newAutoLaunch);
+      }
+    });
+  }
+
+  // ---------- confirm modal ----------
+  function askConfirm(title, text, onYes){
+    pendingConfirm = onYes;
+    document.getElementById("confirmTitle").textContent = title;
+    document.getElementById("confirmText").textContent = text;
+    document.getElementById("confirmModal").classList.add("show");
+  }
+  function initConfirm(){
+    document.getElementById("confirmYesBtn").addEventListener("click", function(){
+      document.getElementById("confirmModal").classList.remove("show");
+      if(pendingConfirm) pendingConfirm();
+      pendingConfirm = null;
+    });
+    document.getElementById("confirmNoBtn").addEventListener("click", function(){
+      document.getElementById("confirmModal").classList.remove("show");
+      pendingConfirm = null;
+    });
+  }
+
+  // ---------- export / import / reset ----------
+  function initFooter(){
+    document.getElementById("exportBtn").addEventListener("click", function(){
+      state.updatedAt = Date.now();
+      var content = "window.__scheduleData = " + JSON.stringify(state, null, 2) + ";\n";
+      var blob = new Blob([content], {type:"text/javascript"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "日程数据.js";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert("已下载 日程数据.js\n\n把它放到 时间安排.html 旁边的同一个文件夹里，覆盖掉旧的那份。以后打开网页会自动读它，数据就不会再因为浏览器清缓存而丢失。");
+    });
+
+    document.getElementById("importBtn").addEventListener("click", function(){
+      document.getElementById("importFile").click();
+    });
+    document.getElementById("importFile").addEventListener("change", function(e){
+      var file = e.target.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        try{
+          // 同时支持 json 备份和 日程数据.js 这种带前缀的数据文件
+          var text = String(reader.result);
+          var first = text.indexOf("{");
+          var last = text.lastIndexOf("}");
+          if(first === -1 || last === -1) throw new Error("找不到数据内容");
+          var parsed = JSON.parse(text.slice(first, last+1));
+          askConfirm("导入数据", "导入会覆盖当前数据，确定继续吗？", function(){
+            state.tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+            state.fixedBlocks = Array.isArray(parsed.fixedBlocks) ? parsed.fixedBlocks : [];
+            if(parsed.settings){
+              state.settings.capacityHours = parsed.settings.capacityHours || 4;
+              state.settings.horizonDays = parsed.settings.horizonDays || 30;
+              state.settings.viewMode = parsed.settings.viewMode === "calendar" ? "calendar" : "list";
+            }
+            saveData(); render();
+          });
+        }catch(err){
+          alert("这份文件读取不了，请确认是之前导出的备份文件");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", function(){
+      askConfirm("清空所有数据", "这会删除所有任务和固定安排，建议先导出一份备份。确定要清空吗？", function(){
+        state.tasks = [];
+        state.fixedBlocks = [];
+        saveData(); render();
+      });
+    });
+  }
+
+  // ---------- init ----------
+  function init(){
+    loadData();
+    initTabs();
+    initTaskForm();
+    initFixedForm();
+    initListActions();
+    initListCheckboxes();
+    initSettings();
+    initConfirm();
+    initFooter();
+    initViewToggle();
+    initCalendarNav();
+    initCalendarClicks();
+    initDayDetailActions();
+    initBulkImport();
+    initIcsImport();
+    initCalendarIntegration();
+    initAutoSync();
+    render();
+    renderSourceLine();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
