@@ -334,3 +334,103 @@ day.remaining 的计算**——纯展示层的东西，排程算法本身没动�
 
 改完这些别忘了走"改完代码之后怎么重新打包、部署"那一节的完整流程，`/Applications`
 里装的那份不会自动更新。
+
+## AI 功能（2026-10-13 加的）
+
+这个 App 原本是纯规则逻辑，排程算法、日历同步都不涉及任何模型调用。现在加了三个可选的
+AI 能力，**默认都是关的／需要先装好 Claude Code 命令行**，不满足条件的话整个 App 的
+行为跟以前完全一样。
+
+**不接 Anthropic API**：调用的是这台电脑上装好并登录过的 Claude Code 命令行
+（`claude -p ...`，非交互模式），用的是用户自己 Claude 账号的额度（Pro/Max 订阅的话
+不用另外按 token 计费），不用单独申请、管理 API Key。代价是每次调用要启动一个命令行
+子进程，比直接打 API 慢；而且命令行没有 Messages API 的 tool use 那种"强制按 schema
+返回"的机制，解析失败的概率比纯 API 方案略高，`main.js` 里专门写了容错解析（见下）。
+
+### 配置和存储
+
+- claude 命令行的自定义路径、模型名、"日历智能筛选"开关存在**单独的** `ai-config.json`
+  （`~/Library/Application Support/时间安排/ai-config.json`），不跟 `schedule-data.json`
+  混在一起，"导出数据文件""导入数据文件""清空数据"这几个操作都不会碰到它。这个文件里
+  不存任何密钥（本来也没有密钥要存）。
+- 设置弹窗（`#settingsModal`）里有专门一块：一行检测状态文字（`#aiCliStatus`，打开弹窗
+  时调 `ai:getStatus` 实时探测）、claude 可执行文件路径输入框（可选，PATH 里找不到
+  `claude` 的时候才需要手动填，macOS 图形界面启动的 App 经常拿不到完整 PATH，这是已知
+  问题）、模型名输入框（可选，留空就用 `claude` 命令行自己的默认模型，填的话直接透传给
+  `--model` 参数，比如 `sonnet`/`opus` 这种别名或者完整模型 ID）、"日历智能筛选"勾选框。
+- `main.js` 里：
+  - `claudeCliCandidates()` 按顺序给出几个候选路径（用户自定义路径 → 裸 `claude`
+    （指望 PATH 里有）→ `~/.claude/local/claude` → 几个常见的 Homebrew/本地安装路径），
+    逐个试直到找到能跑的。
+  - `resolveClaudeBinary()` 只是跑一下 `claude --version` 探测有没有装好，不发真正的对话，
+    不浪费额度，专门给设置弹窗显示状态用。
+  - `runClaudeCli()` 是真正发一轮对话的地方：`execFile('claude', ['-p', 完整prompt,
+    '--output-format', 'json'], ...)`，超时时间 `AI_CLI_TIMEOUT_MS`（3 分钟，命令行
+    启动本身有开销，留了余量）。
+  - `extractJsonPayload()` 做容错解析：先剥 CLI 自己的 JSON 包装（真正的模型回答在
+    `.result` 字段里），再剥模型偶尔手滑多包的 ```json 代码块围栏，最后 `JSON.parse`
+    剩下的部分，解析不出来就老实抛错（带上原始内容方便排查），不会硬凑一个假结果。
+  - `callClaudeCli()` 是对外的统一入口：拼好"系统指示 + 明确要求只输出 JSON + 格式说明
+    + 用户内容"的完整 prompt（因为命令行没法像 API 的 `tool_choice` 那样强制模型按
+    schema 回答，只能靠把要求写清楚在 prompt 里），调 `runClaudeCli` 再 `extractJsonPayload`。
+    没装命令行、没登录、超时、解析失败，都会在这里统一抛出，三个功能各自 catch 住转成
+    "失败就降级成原来的行为"，不会让 AI 调用失败直接把功能挡死。
+
+### 功能一：AI 智能添加任务（任务面板，"AI 智能添加"按钮，挨着"批量添加"）
+
+把一段自然语言（可以一次写好几个任务）发给模型，要求它按 `tasks` 字段返回
+`{name, deadline, hours, priority, earliestStart, note}` 的结构化数组（`index.html`
+里的 `ai:parseTasksText` 调用，system prompt 里把"今天的日期"喂给模型做相对日期换算，
+比如"下周三"）。拿到结果之后**不会直接写入**，会走一遍和手动添加同样的字段校验
+（`validateAiTaskRow`：日期格式、小时数 >0、优先级落在 1-3），校验不过的那条标红显示
+问题，用户看着预览确认没问题，点"确认添加"才真正 push 进 `state.tasks`，逻辑上
+完全复用了"批量添加"原有的预览/确认模式（`renderBulkPreview`/`commitBulkImport`）。
+
+### 功能二：日历占用智能筛选（设置里的"日历智能筛选"开关 + "从日历读取占用"按钮）
+
+默认关闭，不影响原有行为。打开之后，`handleCalendarRead()` 读到苹果日历事件之后，
+在 `splitEventsIntoBlocks` 之前多一步 `maybeAiFilterEvents()`：把事件列表（去掉全天事件之后
+的那些，AppleScript 那层已经过滤过）发给模型，让它判断哪些不像是真实会占用时间的安排
+（比如事件标题就是"提醒"之类的备忘），返回 `{index, keep, reason}` 的逐条判断
+（`ai:classifyBusyEvents`）。**system prompt 里明确要求"拿不准就 keep:true"**，
+偏保守，宁可多保留几条可疑的，也不要漏掉真实占用——漏判的后果（该挡的时间没挡住，
+任务排到冲突的时间段）比多判的后果（多了条没用的固定安排，用户自己能看出来删掉）严重。
+被排除的条目会在导入结果弹窗里列出来并附上理由，是透明可审查的，不是静默过滤。
+AI 调用失败（命令行没装、没登录、超时）会在 console 打警告，然后自动退回成
+"不筛选，所有事件都保留"，不会因为 AI 掉链子就让"从日历读取占用"这个核心功能用不了。
+
+### 功能三：排不下时 AI 建议调整（警告框里的"AI 建议调整"按钮）
+
+`computeSchedule()` 算出 `schedule.atRisk` 之后，`buildWarningsHtml()` 在有硬警告
+（`shortHours > 0`，也就是真的排不进去的那些）的时候会多渲染一个"AI 建议调整"按钮。
+点击之后（`openAiReschedule`）把排不下的任务列表 + 这些任务的完整字段 + 当前的
+`capacityHours`/`horizonDays` 打包发给模型（`ai:suggestReschedule`），要求它给出最多
+5 条具体建议，每条必须明确是"改哪个任务的哪个字段成什么值"或者"把每日时间上限改成多少"，
+不接受"去跟老师申请延期"这种程序没法直接执行的空泛建议（除非真的没有别的办法，那也要求
+标成 `field:"无法自动应用"`，界面上这种建议不会显示"应用"按钮）。
+
+**每条建议都要用户自己点"应用"才会真的改数据**（`applyAiSuggestion`），没有任何一条会
+自动生效。应用的时候按任务名字匹配 `state.tasks` 里对应的未完成任务，改完立刻
+`saveData()` + `render()`，用户能马上看到调整后排不排得下。这个设计是延续"逾期任务
+只在日历上标记、不自动改数据"那条已经定下来的原则——AI 能提建议，但改不改、改成什么
+永远是用户自己点出来的，不会有任何一步绕过确认直接写数据。
+
+### 如果以后要加别的 AI 能力
+
+照着现在这三个的模式来：`main.js` 里用 `callClaudeCli()` 包一个新的 `ai:xxx` handler，
+写清楚 `systemPrompt` + `schemaHint`（`schemaHint` 是纯文本描述的输出格式要求，不是真的
+JSON schema 对象——命令行没法强制模型遵守，只能靠在 prompt 里写清楚），`preload.js`
+里挂到 `window.aiBridge` 下，渲染进程里拿到结果之后**该走原来的校验就走原来的校验，
+该让用户确认就让用户确认**，不要因为是"AI 给的"就跳过校验或者静默写入——这几个功能的
+信任模型是"AI 只负责降低用户的操作成本（打字、读日历、想调整方案），最终决定权和数据
+校验这两件事上 AI 跟手动输入享受完全相同的待遇"。
+
+### 如果以后想换回直接调 Anthropic API
+
+2026-10-13 一开始是直接调 Messages API（`fetch` + `tool_choice` 强制结构化输出），后来
+应用户要求改成了调本地 Claude Code 命令行，为的是不用单独申请 API Key、用账号自己的
+订阅额度。如果以后想换回去（比如要稳定性更高、不想依赖本地装好命令行这件事），改动集中在
+`main.js` 的 `callClaudeCli`/`runClaudeCli`/`resolveClaudeBinary`/`claudeCliCandidates`
+这几个函数和对应的 `ai:getStatus`/`ai:saveConfig` handler，`index.html` 里三个功能的
+调用方式（`window.aiBridge.parseTasksText`/`classifyBusyEvents`/`suggestReschedule`
+这几个接口名和返回形状）不用动，只是换掉 main.js 里这几个函数的内部实现。

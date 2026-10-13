@@ -183,6 +183,14 @@
   .bulk-row.err{background:var(--danger-soft);color:var(--danger);}
   .bulk-summary{font-size:12px;color:var(--text-dim);margin-top:2px;}
 
+  .ai-card{font-size:12px;padding:8px 10px;border-radius:7px;background:var(--bg);border:1px solid var(--border);margin-bottom:6px;}
+  .ai-card .ai-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .ai-card .ai-card-title{font-weight:600;}
+  .ai-card .ai-card-reason{color:var(--text-dim);margin-top:3px;}
+  .ai-card button{flex-shrink:0;font-size:11.5px;padding:4px 9px;}
+  .ai-card.applied{opacity:.55;}
+  .ai-hint{font-size:12px;color:var(--text-dim);margin:6px 0;}
+
   input[type=file]{padding:7px 0;border:none;}
   .ics-row{display:flex;align-items:flex-start;gap:8px;font-size:12px;padding:7px 9px;border-radius:7px;background:var(--fixed-soft);color:var(--text);}
   .ics-row input[type=checkbox]{margin-top:2px;width:auto;flex-shrink:0;}
@@ -216,7 +224,10 @@
         <div class="item-form">
           <div class="panel-head">
             <h3 id="taskFormTitle">添加任务</h3>
-            <button class="ghost" id="bulkImportBtn" style="font-size:11.5px;">批量添加</button>
+            <div>
+              <button class="ghost" id="aiTaskAddBtn" style="font-size:11.5px;">AI 智能添加</button>
+              <button class="ghost" id="bulkImportBtn" style="font-size:11.5px;">批量添加</button>
+            </div>
           </div>
           <div class="field">
             <label>任务名称</label>
@@ -402,6 +413,26 @@ window.__scheduleData = {
       <label>上次同步到日历的时间</label>
       <div id="lastSyncDisplay" style="font-size:12.5px;color:var(--text-dim);"></div>
     </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+    <h3 style="font-size:12px;color:var(--text-dim);margin-bottom:10px;font-weight:600;">AI 功能（自然语言录入任务 / 日历智能筛选 / 排不下时给建议）</h3>
+    <p style="margin-bottom:10px;">不接 API，调用的是这台电脑上装好并登录过的 Claude Code 命令行（<code>claude</code>），用你账号自己的额度。没装的话先在终端装好 Claude Code 并跑一次 <code>claude login</code>。</p>
+    <div class="field">
+      <div id="aiCliStatus" style="font-size:11.5px;color:var(--text-dim);"></div>
+    </div>
+    <div class="field">
+      <label>claude 可执行文件路径（可选，PATH 里找不到的话才需要手动填）</label>
+      <input type="text" id="aiCliPathInput" placeholder="留空自动查找，比如 /opt/homebrew/bin/claude">
+    </div>
+    <div class="field">
+      <label>模型（可选，留空用 claude 命令行自己的默认值）</label>
+      <input type="text" id="aiModelInput" placeholder="比如 sonnet 或者 opus">
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;">
+        <input type="checkbox" id="aiCalendarFilterInput" style="width:auto;">
+        <span>"从日历读取占用"时用 AI 智能筛选（过滤掉看起来不是真实占用的事件）</span>
+      </label>
+    </div>
     <div class="form-buttons">
       <button class="primary" id="saveSettingsBtn">保存</button>
       <button id="closeSettingsBtn">关闭</button>
@@ -420,6 +451,23 @@ window.__scheduleData = {
     <div class="form-buttons">
       <button class="primary" id="bulkConfirmBtn">添加</button>
       <button id="bulkCancelBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="aiTaskModal">
+  <div class="modal" style="width:520px;">
+    <h3>AI 智能添加任务</h3>
+    <p>直接用大白话描述，比如"下周三之前要交商法论文，大概20小时，优先级拉高；这周六之前扫描一下报名表，半小时"。AI 解析之后会列出来，确认没问题再点添加，不会自动写入。</p>
+    <textarea id="aiTaskTextarea" rows="4" placeholder="下周三之前要交商法论文，大概20小时..."></textarea>
+    <div class="form-buttons">
+      <button class="primary" id="aiTaskParseBtn">AI 解析</button>
+      <button id="aiTaskCancelBtn">取消</button>
+    </div>
+    <div class="ai-hint" id="aiTaskStatus"></div>
+    <div class="bulk-preview" id="aiTaskPreview"></div>
+    <div class="form-buttons" id="aiTaskConfirmRow" style="display:none;">
+      <button class="primary" id="aiTaskConfirmBtn">确认添加</button>
     </div>
   </div>
 </div>
@@ -460,6 +508,15 @@ window.__scheduleData = {
     <h3>同步到日历 - 结果</h3>
     <div id="calSyncResultBody"></div>
     <div class="form-buttons"><button id="closeCalSyncResultBtn">关闭</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="aiRescheduleModal">
+  <div class="modal" style="width:480px;max-height:82vh;display:flex;flex-direction:column;">
+    <h3>AI 建议调整</h3>
+    <p>只是建议，点"应用"才会真的改动对应任务或者设置，不点的话什么都不会变。</p>
+    <div id="aiRescheduleBody" style="overflow-y:auto;"></div>
+    <div class="form-buttons"><button id="closeAiRescheduleBtn">关闭</button></div>
   </div>
 </div>
 
@@ -1050,7 +1107,11 @@ window.__scheduleData = {
     soft.forEach(function(r){
       html += '<li><strong>'+escapeHtml(r.name)+'</strong>（截止 '+r.deadline+'）'+r.reason+'，最好留意进度，避免临时出状况。</li>';
     });
-    html += '</ul></div>';
+    html += '</ul>';
+    if(hard.length){
+      html += '<button class="ghost" id="aiRescheduleBtn" style="font-size:11.5px;margin-top:4px;">AI 建议调整</button>';
+    }
+    html += '</div>';
     return html;
   }
 
@@ -2008,57 +2069,107 @@ window.__scheduleData = {
     var btn = document.getElementById("calReadBtn");
     btn.disabled = true; btn.textContent = "读取中…";
     window.calendarBridge.readBusy().then(function(result){
-      btn.disabled = false; btn.textContent = "从日历读取占用";
       if(!result || !result.ok){
+        btn.disabled = false; btn.textContent = "从日历读取占用";
         alert("读取日历失败：" + ((result && result.error) || "未知错误"));
         return;
       }
-
-      // 先删掉上一次导入的“日历 ”前缀条目，避免越堆越多
-      state.fixedBlocks = state.fixedBlocks.filter(function(f){
-        return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0;
+      maybeAiFilterEvents(result.events || [], btn).then(function(filtered){
+        btn.disabled = false; btn.textContent = "从日历读取占用";
+        finishCalendarRead(filtered.events, filtered.excluded);
       });
-
-      var newBlocks = splitEventsIntoBlocks(result.events || []);
-      newBlocks.forEach(function(b){
-        state.fixedBlocks.push({
-          id: uid(),
-          name: CAL_IMPORT_PREFIX + " " + b.name,
-          type: "once",
-          date: b.date,
-          weekday: String(parseISODate(b.date).getDay()),
-          start: b.start,
-          end: b.end
-        });
-      });
-
-      // 疑似重复检测：新导入的条目 vs 其他手动添加的条目，同一天（或同一个星期几）
-      // 且时间段有重叠，就列出来让用户自己判断，不自动删除任何一条。
-      var manualBlocks = state.fixedBlocks.filter(function(f){ return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0; });
-      var importedBlocks = state.fixedBlocks.filter(function(f){ return f.name.indexOf(CAL_IMPORT_PREFIX + " ") === 0; });
-      var dupes = [];
-      importedBlocks.forEach(function(ib){
-        manualBlocks.forEach(function(mb){
-          var sameDay = mb.type === "weekly"
-            ? String(mb.weekday) === String(parseISODate(ib.date).getDay())
-            : mb.date === ib.date;
-          if(sameDay && rangesOverlap(ib.start, ib.end, mb.start, mb.end)){
-            dupes.push({ imported: ib, manual: mb });
-          }
-        });
-      });
-
-      saveData();
-      render();
-      showCalImportResult(newBlocks.length, dupes);
     }).catch(function(err){
       btn.disabled = false; btn.textContent = "从日历读取占用";
       alert("读取日历失败：" + err.message);
     });
   }
 
-  function showCalImportResult(count, dupes){
+  // 如果设置里开了"AI 智能筛选"并且检测到 claude 命令行，把读到的事件发给模型判断
+  // 哪些该保留、哪些该忽略；没开、没检测到命令行，或者调用失败（命令行没装、没登录、
+  // 超时），都退回成不筛选，跟以前的行为完全一样，不会因为 AI 掉链子就把这个功能挡住。
+  function maybeAiFilterEvents(rawEvents, btn){
+    if(!window.aiBridge || rawEvents.length === 0){
+      return Promise.resolve({ events: rawEvents, excluded: [] });
+    }
+    return window.aiBridge.getStatus().then(function(status){
+      if(!status || !status.hasCli || !status.calendarAiFilter){
+        return { events: rawEvents, excluded: [] };
+      }
+      if(btn){ btn.textContent = "AI 筛选中…"; }
+      return window.aiBridge.classifyBusyEvents(rawEvents).then(function(res){
+        if(!res || !res.ok){
+          console.warn("AI 筛选失败，改为不筛选：", res && res.error);
+          return { events: rawEvents, excluded: [] };
+        }
+        var decisionByIndex = {};
+        (res.decisions || []).forEach(function(d){ decisionByIndex[d.index] = d; });
+        var kept = [], excluded = [];
+        rawEvents.forEach(function(ev, i){
+          var d = decisionByIndex[i];
+          if(d && d.keep === false){
+            excluded.push({ event: ev, reason: d.reason || "" });
+          } else {
+            kept.push(ev);
+          }
+        });
+        return { events: kept, excluded: excluded };
+      }).catch(function(err){
+        console.warn("AI 筛选出错，改为不筛选：", err);
+        return { events: rawEvents, excluded: [] };
+      });
+    });
+  }
+
+  function finishCalendarRead(events, aiExcluded){
+    // 先删掉上一次导入的“日历 ”前缀条目，避免越堆越多
+    state.fixedBlocks = state.fixedBlocks.filter(function(f){
+      return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0;
+    });
+
+    var newBlocks = splitEventsIntoBlocks(events || []);
+    newBlocks.forEach(function(b){
+      state.fixedBlocks.push({
+        id: uid(),
+        name: CAL_IMPORT_PREFIX + " " + b.name,
+        type: "once",
+        date: b.date,
+        weekday: String(parseISODate(b.date).getDay()),
+        start: b.start,
+        end: b.end
+      });
+    });
+
+    // 疑似重复检测：新导入的条目 vs 其他手动添加的条目，同一天（或同一个星期几）
+    // 且时间段有重叠，就列出来让用户自己判断，不自动删除任何一条。
+    var manualBlocks = state.fixedBlocks.filter(function(f){ return f.name.indexOf(CAL_IMPORT_PREFIX + " ") !== 0; });
+    var importedBlocks = state.fixedBlocks.filter(function(f){ return f.name.indexOf(CAL_IMPORT_PREFIX + " ") === 0; });
+    var dupes = [];
+    importedBlocks.forEach(function(ib){
+      manualBlocks.forEach(function(mb){
+        var sameDay = mb.type === "weekly"
+          ? String(mb.weekday) === String(parseISODate(ib.date).getDay())
+          : mb.date === ib.date;
+        if(sameDay && rangesOverlap(ib.start, ib.end, mb.start, mb.end)){
+          dupes.push({ imported: ib, manual: mb });
+        }
+      });
+    });
+
+    saveData();
+    render();
+    showCalImportResult(newBlocks.length, dupes, aiExcluded || []);
+  }
+
+  function showCalImportResult(count, dupes, aiExcluded){
     var html = "<p>本次从其他日历读取并导入了 "+count+" 条固定安排，名称都加了“日历”前缀。</p>";
+    if(aiExcluded && aiExcluded.length){
+      html += "<p>AI 智能筛选判断以下 "+aiExcluded.length+" 条不算真实占用，已经没有导入（关掉筛选可以在设置里改）：</p>";
+      html += '<div class="bulk-preview">';
+      aiExcluded.forEach(function(x){
+        html += '<div class="bulk-row">'+escapeHtml(x.event.name||'(无标题)')+(x.reason ? '　—　'+escapeHtml(x.reason) : '')+'</div>';
+      });
+      html += '</div>';
+    }
     if(dupes.length){
       html += "<p>发现 "+dupes.length+" 处疑似和你手动添加的条目重复，请自己确认要不要删掉其中一条（不会自动删除）：</p>";
       html += '<div class="bulk-preview">';
@@ -2335,6 +2446,235 @@ window.__scheduleData = {
     render();
   }
 
+  // ---------- AI 智能添加任务 ----------
+  // AI 的任务只是把自然语言拆成结构化字段，真正写进 state.tasks 之前，所有字段都要
+  // 经过和手动添加、批量添加同一套校验（日期格式、小时数大于 0、优先级在 1-3 之间），
+  // 校验不过的那条不会被添加，用红色提示；全部通过用户确认点"确认添加"才会落地。
+  var aiParsedTaskRows = [];
+
+  function validateAiTaskRow(t){
+    var errors = [];
+    var name = String((t && t.name) || "").trim();
+    if(!name) errors.push("没有任务名称");
+    var deadline = String((t && t.deadline) || "");
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(deadline)) errors.push("截止日期格式不对（" + deadline + "）");
+    var hours = Number(t && t.hours);
+    if(!(hours > 0)) errors.push("预计用时不对（" + (t && t.hours) + "）");
+    var priority = Number(t && t.priority);
+    if([1,2,3].indexOf(priority) === -1) priority = 2;
+    var earliestStart = String((t && t.earliestStart) || "");
+    if(earliestStart && !/^\d{4}-\d{2}-\d{2}$/.test(earliestStart)) earliestStart = "";
+    return { name: name, deadline: deadline, hours: hours, priority: priority, earliestStart: earliestStart, note: (t && t.note) || "", errors: errors };
+  }
+
+  function renderAiTaskPreview(){
+    var preview = document.getElementById("aiTaskPreview");
+    var confirmRow = document.getElementById("aiTaskConfirmRow");
+    if(aiParsedTaskRows.length === 0){
+      preview.innerHTML = "";
+      confirmRow.style.display = "none";
+      return;
+    }
+    var okCount = 0;
+    preview.innerHTML = aiParsedTaskRows.map(function(r){
+      if(r.errors.length === 0){
+        okCount++;
+        return '<div class="bulk-row">'+escapeHtml(r.name)+' · 截止 '+r.deadline+' · 预计 '+fmtHours(r.hours)+' · 优先级'+priorityLabel(r.priority)+(r.earliestStart ? (' · 最早开始 '+r.earliestStart) : '')+(r.note ? ('<br><span style="opacity:.75;">AI：'+escapeHtml(r.note)+'</span>') : '')+'</div>';
+      } else {
+        return '<div class="bulk-row err">“'+escapeHtml(r.name||'(未命名)')+'” 有问题：'+r.errors.join('，')+'</div>';
+      }
+    }).join("");
+    confirmRow.style.display = okCount > 0 ? "flex" : "none";
+  }
+
+  function initAiTaskAdd(){
+    document.getElementById("aiTaskAddBtn").addEventListener("click", function(){
+      window.aiBridge && window.aiBridge.getStatus().then(function(status){
+        if(!status || !status.hasCli){
+          alert("没有检测到 claude 命令行，先在电脑上装好 Claude Code 并登录（claude login），或者去设置里手动填一下路径");
+          return;
+        }
+        document.getElementById("aiTaskTextarea").value = "";
+        document.getElementById("aiTaskStatus").textContent = "";
+        document.getElementById("aiTaskPreview").innerHTML = "";
+        document.getElementById("aiTaskConfirmRow").style.display = "none";
+        aiParsedTaskRows = [];
+        document.getElementById("aiTaskModal").classList.add("show");
+        document.getElementById("aiTaskTextarea").focus();
+      });
+    });
+    document.getElementById("aiTaskCancelBtn").addEventListener("click", function(){
+      document.getElementById("aiTaskModal").classList.remove("show");
+    });
+    document.getElementById("aiTaskParseBtn").addEventListener("click", function(){
+      var text = document.getElementById("aiTaskTextarea").value.trim();
+      if(!text){ alert("先写点东西再解析"); return; }
+      if(!window.aiBridge){ alert("当前环境不支持 AI 功能（需要在打包后的桌面应用里运行）"); return; }
+      var statusEl = document.getElementById("aiTaskStatus");
+      var btn = document.getElementById("aiTaskParseBtn");
+      btn.disabled = true;
+      statusEl.textContent = "AI 解析中…";
+      document.getElementById("aiTaskPreview").innerHTML = "";
+      document.getElementById("aiTaskConfirmRow").style.display = "none";
+      window.aiBridge.parseTasksText(text, toISODate(new Date())).then(function(res){
+        btn.disabled = false;
+        if(!res || !res.ok){
+          statusEl.textContent = "解析失败：" + ((res && res.error) || "未知错误");
+          return;
+        }
+        if(!res.tasks || res.tasks.length === 0){
+          statusEl.textContent = "AI 没有从这段文字里解析出任务，换个说法试试";
+          return;
+        }
+        aiParsedTaskRows = res.tasks.map(validateAiTaskRow);
+        statusEl.textContent = "解析出 " + aiParsedTaskRows.length + " 条，确认没问题再点下面的按钮添加";
+        renderAiTaskPreview();
+      }).catch(function(err){
+        btn.disabled = false;
+        statusEl.textContent = "解析出错：" + err.message;
+      });
+    });
+    document.getElementById("aiTaskConfirmBtn").addEventListener("click", function(){
+      var rows = aiParsedTaskRows.filter(function(r){ return r.errors.length === 0; });
+      if(rows.length === 0){ alert("没有可以添加的任务"); return; }
+      rows.forEach(function(r){
+        state.tasks.push({ id: uid(), name: r.name, deadline: r.deadline, hours: r.hours, priority: r.priority, earliestStart: r.earliestStart || "", done: false });
+      });
+      aiParsedTaskRows = [];
+      document.getElementById("aiTaskModal").classList.remove("show");
+      saveData();
+      render();
+    });
+  }
+
+  // ---------- AI 建议调整（排不下的时候）----------
+  var aiRescheduleSuggestions = [];
+
+  function coercePriorityValue(v){
+    var s = String(v).trim();
+    if(s === "3" || s === "高") return 3;
+    if(s === "1" || s === "低") return 1;
+    if(s === "2" || s === "中") return 2;
+    var n = Number(s);
+    if([1,2,3].indexOf(n) !== -1) return n;
+    return null;
+  }
+
+  function initAiReschedule(){
+    document.getElementById("warningsContainer").addEventListener("click", function(e){
+      if(e.target && e.target.id === "aiRescheduleBtn"){
+        openAiReschedule();
+      }
+    });
+    document.getElementById("closeAiRescheduleBtn").addEventListener("click", function(){
+      document.getElementById("aiRescheduleModal").classList.remove("show");
+    });
+  }
+
+  function openAiReschedule(){
+    if(!window.aiBridge){ alert("当前环境不支持 AI 功能（需要在打包后的桌面应用里运行）"); return; }
+    window.aiBridge.getStatus().then(function(status){
+      if(!status || !status.hasCli){
+        alert("没有检测到 claude 命令行，先在电脑上装好 Claude Code 并登录（claude login），或者去设置里手动填一下路径");
+        return;
+      }
+      var body = document.getElementById("aiRescheduleBody");
+      body.innerHTML = '<p>AI 分析中…</p>';
+      document.getElementById("aiRescheduleModal").classList.add("show");
+
+      var schedule = lastSchedule || computeSchedule();
+      var hard = schedule.atRisk.filter(function(r){ return r.shortHours > 0; });
+      var relevantNames = {};
+      hard.forEach(function(r){ relevantNames[r.name] = true; });
+      var relevantTasks = state.tasks.filter(function(t){ return !t.done && relevantNames[t.name]; }).map(function(t){
+        return { name: t.name, deadline: t.deadline, hours: t.hours, priority: t.priority, earliestStart: t.earliestStart || "" };
+      });
+      var context = {
+        todayIso: schedule.todayIso,
+        capacityHours: state.settings.capacityHours,
+        horizonDays: state.settings.horizonDays,
+        排不下的任务: hard,
+        这些任务目前的完整信息: relevantTasks
+      };
+
+      window.aiBridge.suggestReschedule(context).then(function(res){
+        if(!res || !res.ok){
+          body.innerHTML = '<p>获取建议失败：'+escapeHtml((res && res.error) || "未知错误")+'</p>';
+          return;
+        }
+        renderAiRescheduleSuggestions(res.suggestions || []);
+      }).catch(function(err){
+        body.innerHTML = '<p>获取建议出错：'+escapeHtml(err.message)+'</p>';
+      });
+    });
+  }
+
+  function renderAiRescheduleSuggestions(suggestions){
+    var body = document.getElementById("aiRescheduleBody");
+    if(suggestions.length === 0){
+      body.innerHTML = '<p>AI 没能给出具体建议，可以自己考虑提高每日时间上限，或者跟相关方沟通延后截止日期。</p>';
+      return;
+    }
+    body.innerHTML = suggestions.map(function(s, i){
+      var canApply = s.field !== "无法自动应用";
+      return '<div class="ai-card" data-idx="'+i+'">'
+        + '<div class="ai-card-top">'
+        + '<div><div class="ai-card-title">'+escapeHtml(s.taskName)+'</div>'
+        + '<div>'+fieldLabelCn(s.field)+'：'+escapeHtml(s.currentValue||'（当前）')+' → '+escapeHtml(s.suggestedValue)+'</div></div>'
+        + (canApply ? '<button data-action="applyAiSuggestion" data-idx="'+i+'">应用</button>' : '')
+        + '</div>'
+        + '<div class="ai-card-reason">'+escapeHtml(s.reasoning||'')+'</div>'
+        + '</div>';
+    }).join("");
+    aiRescheduleSuggestions = suggestions;
+    body.querySelectorAll('[data-action="applyAiSuggestion"]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var idx = Number(btn.getAttribute("data-idx"));
+        applyAiSuggestion(aiRescheduleSuggestions[idx], btn);
+      });
+    });
+  }
+
+  function fieldLabelCn(field){
+    if(field === "deadline") return "截止日期";
+    if(field === "hours") return "预计用时";
+    if(field === "priority") return "优先级";
+    if(field === "earliestStart") return "最早开始日期";
+    if(field === "capacityHours") return "每天可用时间上限";
+    return "建议";
+  }
+
+  function applyAiSuggestion(s, btn){
+    if(!s) return;
+    if(s.field === "capacityHours"){
+      var cap = parseFloat(s.suggestedValue);
+      if(!(cap > 0)){ alert("这条建议的数值看起来不对：" + s.suggestedValue); return; }
+      state.settings.capacityHours = cap;
+      saveData(); render();
+      btn.textContent = "已应用"; btn.disabled = true; btn.closest(".ai-card").classList.add("applied");
+      return;
+    }
+    var task = state.tasks.filter(function(t){ return !t.done; }).find(function(t){ return t.name === s.taskName; });
+    if(!task){ alert("没找到叫“"+s.taskName+"”的未完成任务，可能已经被改过名字或者标记完成了"); return; }
+    if(s.field === "deadline" || s.field === "earliestStart"){
+      var v = String(s.suggestedValue).trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ alert("这条建议的日期格式看起来不对：" + s.suggestedValue); return; }
+      task[s.field] = v;
+    } else if(s.field === "hours"){
+      var h = Number(s.suggestedValue);
+      if(!(h > 0)){ alert("这条建议的小时数看起来不对：" + s.suggestedValue); return; }
+      task.hours = h;
+    } else if(s.field === "priority"){
+      var p = coercePriorityValue(s.suggestedValue);
+      if(p === null){ alert("这条建议的优先级看起来不对：" + s.suggestedValue); return; }
+      task.priority = p;
+    } else {
+      return;
+    }
+    saveData(); render();
+    btn.textContent = "已应用"; btn.disabled = true; btn.closest(".ai-card").classList.add("applied");
+  }
+
   // ---------- settings modal ----------
   function formatDateTime(ts){
     var d = new Date(ts);
@@ -2349,6 +2689,23 @@ window.__scheduleData = {
       document.getElementById("autoLaunchInput").checked = state.settings.autoLaunch !== false;
       document.getElementById("autoSyncInput").checked = !!state.settings.autoSync;
       document.getElementById("lastSyncDisplay").textContent = state.settings.lastSyncAt ? formatDateTime(state.settings.lastSyncAt) : "还没有同步过";
+
+      document.getElementById("aiCliPathInput").value = "";
+      document.getElementById("aiModelInput").value = "";
+      document.getElementById("aiCalendarFilterInput").checked = false;
+      document.getElementById("aiCliStatus").textContent = "检测中…";
+      if(window.aiBridge){
+        window.aiBridge.getStatus().then(function(status){
+          if(!status) return;
+          document.getElementById("aiCliStatus").textContent = status.hasCli ? ("检测到 claude 命令行：" + status.resolvedBin) : "没有检测到 claude 命令行，确认装好 Claude Code 并且跑过 claude login";
+          document.getElementById("aiCliPathInput").value = status.cliPath || "";
+          document.getElementById("aiModelInput").value = status.model || "";
+          document.getElementById("aiCalendarFilterInput").checked = !!status.calendarAiFilter;
+        });
+      } else {
+        document.getElementById("aiCliStatus").textContent = "当前环境不支持 AI 功能（需要在打包后的桌面应用里运行）";
+      }
+
       document.getElementById("settingsModal").classList.add("show");
     });
     document.getElementById("closeSettingsBtn").addEventListener("click", function(){
@@ -2372,6 +2729,14 @@ window.__scheduleData = {
 
       if(autoLaunchChanged && window.appBridge){
         window.appBridge.setAutoLaunch(newAutoLaunch);
+      }
+
+      if(window.aiBridge){
+        window.aiBridge.saveConfig({
+          cliPath: document.getElementById("aiCliPathInput").value,
+          model: document.getElementById("aiModelInput").value,
+          calendarAiFilter: document.getElementById("aiCalendarFilterInput").checked
+        });
       }
     });
   }
@@ -2473,6 +2838,8 @@ window.__scheduleData = {
     initIcsImport();
     initCalendarIntegration();
     initAutoSync();
+    initAiTaskAdd();
+    initAiReschedule();
     render();
     renderSourceLine();
   }

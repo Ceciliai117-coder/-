@@ -15,3 +15,11 @@ contextBridge.exposeInMainWorld('calendarBridge', {
 contextBridge.exposeInMainWorld('appBridge', {
   setAutoLaunch: (enabled) => ipcRenderer.invoke('app:setAutoLaunch', enabled),
 });
+
+contextBridge.exposeInMainWorld('aiBridge', {
+  getStatus: () => ipcRenderer.invoke('ai:getStatus'),
+  saveConfig: (patch) => ipcRenderer.invoke('ai:saveConfig', patch),
+  parseTasksText: (text, todayIso) => ipcRenderer.invoke('ai:parseTasksText', { text: text, todayIso: todayIso }),
+  classifyBusyEvents: (events) => ipcRenderer.invoke('ai:classifyBusyEvents', events),
+  suggestReschedule: (context) => ipcRenderer.invoke('ai:suggestReschedule', context),
+});
